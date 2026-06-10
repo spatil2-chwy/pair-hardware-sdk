@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     iproute2 \
     less \
+    libboost-system-dev \
+    libboost-thread-dev \
     libusb-1.0-0-dev \
     net-tools \
     python3-colcon-common-extensions \
