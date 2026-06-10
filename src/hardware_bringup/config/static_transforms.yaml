@@ -1,0 +1,19 @@
+# Replace these placeholder extrinsics with measured sensor poses.
+# Format: parent, child, xyz meters, rpy radians.
+transforms:
+  - parent: base_link
+    child: camera_link
+    xyz: [0.20, 0.00, 0.35]
+    rpy: [0.0, 0.0, 0.0]
+  - parent: base_link
+    child: arducam_color_optical_frame
+    xyz: [0.18, 0.05, 0.32]
+    rpy: [0.0, 0.0, 0.0]
+  - parent: base_link
+    child: rplidar_link
+    xyz: [0.00, 0.00, 0.20]
+    rpy: [0.0, 0.0, 0.0]
+  - parent: base_link
+    child: hesai_lidar
+    xyz: [0.00, 0.00, 0.55]
+    rpy: [0.0, 0.0, 0.0]

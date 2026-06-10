@@ -1,0 +1,13 @@
+repositories:
+  vendor/realsense-ros:
+    type: git
+    url: https://github.com/realsenseai/realsense-ros.git
+    version: ros2-master
+  vendor/HesaiLidar_ROS_2.0:
+    type: git
+    url: https://github.com/HesaiTechnology/HesaiLidar_ROS_2.0.git
+    version: master
+  vendor/rplidar_ros:
+    type: git
+    url: https://github.com/Slamtec/rplidar_ros.git
+    version: ros2
