@@ -20,12 +20,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-rosdep \
     python3-vcstool \
+    ros-humble-v4l2-camera \
     sudo \
     udev \
     usbutils \
     v4l-utils \
   && (rosdep init 2>/dev/null || true) \
   && rosdep update \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY hardware_sdk.repos /tmp/hardware_sdk.repos
+
+RUN mkdir -p /opt/pair_vendor_ws/src \
+  && vcs import /opt/pair_vendor_ws/src < /tmp/hardware_sdk.repos \
+  && git -C /opt/pair_vendor_ws/src/vendor/HesaiLidar_ROS_2.0 submodule update --init --recursive \
+  && apt-get update \
+  && source /opt/ros/${ROS_DISTRO}/setup.bash \
+  && rosdep install -i --from-paths /opt/pair_vendor_ws/src --rosdistro ${ROS_DISTRO} -y \
+  && colcon build --symlink-install --base-paths /opt/pair_vendor_ws/src --build-base /opt/pair_vendor_ws/build --install-base /opt/pair_vendor_ws/install --log-base /opt/pair_vendor_ws/log \
   && rm -rf /var/lib/apt/lists/*
 
 COPY docker/humble/entrypoint.sh /ros_entrypoint.sh

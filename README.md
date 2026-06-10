@@ -62,9 +62,17 @@ rosdep update
 
 ROS 2 Humble is built for Ubuntu 22.04, so on a Jetson Thor host running Ubuntu 24.04 use the Jammy-based Humble container in this repo.
 
-Build the image from the repo root:
+Build the image from the repo root. The image installs `v4l2_camera` and builds the vendor driver repos from `hardware_sdk.repos` into `/opt/pair_vendor_ws`:
 
 ```bash
+./docker/build_humble_image.sh
+```
+
+To force a clean rebuild after Dockerfile or driver changes:
+
+```bash
+docker rm -f pair-hardware-sdk-humble 2>/dev/null || true
+docker rmi pair-hardware-sdk:humble 2>/dev/null || true
 ./docker/build_humble_image.sh
 ```
 
@@ -96,13 +104,18 @@ PAIR_HARDWARE_SDK_MOUNT_LOCAL=0 PAIR_HARDWARE_SDK_BRANCH=thor-test ./docker/run_
 
 For local-only branch work, use the mounted checkout flow above. The run wrapper uses host networking, `/dev`, privileged mode, and the NVIDIA runtime when Docker reports one. That is intentional for ROS 2 discovery plus USB, serial, video, and LiDAR access on Thor.
 
-To also import vendor driver sources before building, add:
+The image entrypoint sources `/opt/pair_vendor_ws/install/setup.bash` before the mounted SDK workspace, so these should be discoverable in every fresh container:
 
 ```bash
-PAIR_HARDWARE_SDK_MOUNT_LOCAL=0 PAIR_HARDWARE_SDK_IMPORT_VENDOR_DRIVERS=1 ./docker/run_humble.sh clone-and-build-pair-hardware-sdk
+ros2 pkg prefix realsense2_camera
+ros2 pkg prefix rplidar_ros
+ros2 pkg prefix hesai_ros_driver
+ros2 pkg prefix v4l2_camera
 ```
 
 ## Install Drivers
+
+If you are using the Thor Docker image from this repo, the normal driver dependencies are already in the image. The sections below are mainly for host installs, debugging, or rebuilding a driver outside Docker.
 
 ### RealSense
 
