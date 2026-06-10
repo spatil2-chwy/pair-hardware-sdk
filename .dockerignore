@@ -1,0 +1,12 @@
+.git
+build
+install
+log
+.colcon
+.vscode
+.idea
+*.bag
+*.db3
+*.mcap
+__pycache__
+*.pyc

@@ -58,6 +58,50 @@ sudo rosdep init
 rosdep update
 ```
 
+## Docker On Jetson Thor
+
+ROS 2 Humble is built for Ubuntu 22.04, so on a Jetson Thor host running Ubuntu 24.04 use the Jammy-based Humble container in this repo.
+
+Build the image from the repo root:
+
+```bash
+./docker/build_humble_image.sh
+```
+
+Run an interactive container against this local checkout. This is the right path for the local `thor-test` branch before it is pushed to GitHub:
+
+```bash
+./docker/run_humble.sh
+```
+
+Inside the container, build the mounted workspace:
+
+```bash
+rosdep install -i --from-path src --rosdistro humble -y
+colcon build --symlink-install
+source install/setup.bash
+```
+
+To clone from GitHub and build inside a container-managed workspace instead of mounting the local checkout:
+
+```bash
+PAIR_HARDWARE_SDK_MOUNT_LOCAL=0 ./docker/run_humble.sh clone-and-build-pair-hardware-sdk
+```
+
+To clone a branch after it exists on GitHub:
+
+```bash
+PAIR_HARDWARE_SDK_MOUNT_LOCAL=0 PAIR_HARDWARE_SDK_BRANCH=thor-test ./docker/run_humble.sh clone-and-build-pair-hardware-sdk
+```
+
+For local-only branch work, use the mounted checkout flow above. The run wrapper uses host networking, `/dev`, privileged mode, and the NVIDIA runtime when Docker reports one. That is intentional for ROS 2 discovery plus USB, serial, video, and LiDAR access on Thor.
+
+To also import vendor driver sources before building, add:
+
+```bash
+PAIR_HARDWARE_SDK_MOUNT_LOCAL=0 PAIR_HARDWARE_SDK_IMPORT_VENDOR_DRIVERS=1 ./docker/run_humble.sh clone-and-build-pair-hardware-sdk
+```
+
 ## Install Drivers
 
 ### RealSense
