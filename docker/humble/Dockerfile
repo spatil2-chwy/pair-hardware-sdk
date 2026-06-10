@@ -37,7 +37,8 @@ RUN mkdir -p /opt/pair_vendor_ws/src \
   && apt-get update \
   && source /opt/ros/${ROS_DISTRO}/setup.bash \
   && rosdep install -i --from-paths /opt/pair_vendor_ws/src --rosdistro ${ROS_DISTRO} -y \
-  && colcon build --symlink-install --base-paths /opt/pair_vendor_ws/src --build-base /opt/pair_vendor_ws/build --install-base /opt/pair_vendor_ws/install --log-base /opt/pair_vendor_ws/log \
+  && cd /opt/pair_vendor_ws \
+  && colcon build --merge-install --symlink-install \
   && rm -rf /var/lib/apt/lists/*
 
 COPY docker/humble/entrypoint.sh /ros_entrypoint.sh
