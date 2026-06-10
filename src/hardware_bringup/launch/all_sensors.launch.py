@@ -14,10 +14,10 @@ def local_launch(filename):
 
 def generate_launch_description():
     args = [
-        DeclareLaunchArgument("enable_realsense", default_value="true"),
-        DeclareLaunchArgument("enable_arducam", default_value="true"),
-        DeclareLaunchArgument("enable_rplidar", default_value="true"),
-        DeclareLaunchArgument("enable_hesai", default_value="true"),
+        DeclareLaunchArgument("use_realsense", default_value="true"),
+        DeclareLaunchArgument("use_arducam", default_value="true"),
+        DeclareLaunchArgument("use_rplidar", default_value="true"),
+        DeclareLaunchArgument("use_hesai", default_value="true"),
         DeclareLaunchArgument("realsense_camera_namespace", default_value="camera"),
         DeclareLaunchArgument("realsense_camera_name", default_value="camera"),
         DeclareLaunchArgument("realsense_color_profile", default_value="640,480,15"),
@@ -37,7 +37,7 @@ def generate_launch_description():
 
     realsense = IncludeLaunchDescription(
         local_launch("realsense.launch.py"),
-        condition=IfCondition(LaunchConfiguration("enable_realsense")),
+        condition=IfCondition(LaunchConfiguration("use_realsense")),
         launch_arguments={
             "camera_namespace": LaunchConfiguration("realsense_camera_namespace"),
             "camera_name": LaunchConfiguration("realsense_camera_name"),
@@ -48,7 +48,7 @@ def generate_launch_description():
 
     arducam = IncludeLaunchDescription(
         local_launch("arducam_v4l2.launch.py"),
-        condition=IfCondition(LaunchConfiguration("enable_arducam")),
+        condition=IfCondition(LaunchConfiguration("use_arducam")),
         launch_arguments={
             "arducam_namespace": LaunchConfiguration("arducam_namespace"),
             "video_device": LaunchConfiguration("arducam_video_device"),
@@ -57,7 +57,7 @@ def generate_launch_description():
 
     rplidar = IncludeLaunchDescription(
         local_launch("rplidar.launch.py"),
-        condition=IfCondition(LaunchConfiguration("enable_rplidar")),
+        condition=IfCondition(LaunchConfiguration("use_rplidar")),
         launch_arguments={
             "model": LaunchConfiguration("rplidar_model"),
             "serial_port": LaunchConfiguration("rplidar_serial_port"),
@@ -67,7 +67,7 @@ def generate_launch_description():
 
     hesai = IncludeLaunchDescription(
         local_launch("hesai.launch.py"),
-        condition=IfCondition(LaunchConfiguration("enable_hesai")),
+        condition=IfCondition(LaunchConfiguration("use_hesai")),
         launch_arguments={
             "hesai_config_file": LaunchConfiguration("hesai_config_file")
         }.items(),

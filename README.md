@@ -106,11 +106,19 @@ PAIR_HARDWARE_SDK_MOUNT_LOCAL=0 PAIR_HARDWARE_SDK_IMPORT_VENDOR_DRIVERS=1 ./dock
 
 ### RealSense
 
-If the package exists for your distro:
+First check whether your container/OS has the ROS package available:
 
 ```bash
-sudo apt install -y ros-$ROS_DISTRO-realsense2-*
+apt search ros-$ROS_DISTRO-realsense
 ```
+
+If you see `ros-$ROS_DISTRO-realsense2-camera`, install it:
+
+```bash
+sudo apt install -y ros-$ROS_DISTRO-realsense2-camera
+```
+
+If apt cannot find it, build `realsense-ros` from source using `hardware_sdk.repos` or clone it into another ROS 2 workspace and source that workspace before launching `hardware_bringup`.
 
 Direct vendor command:
 
@@ -158,10 +166,10 @@ For a model-specific Arducam SDK, install the vendor package and add a new launc
 Slamtec's ROS 2 package is usually built from source:
 
 ```bash
-mkdir -p ~/ros2_ws/src
-cd ~/ros2_ws/src
+mkdir -p ~/rplidar_ros2_ws/src
+cd ~/rplidar_ros2_ws/src
 git clone -b ros2 https://github.com/Slamtec/rplidar_ros.git
-cd ~/ros2_ws
+cd ~/rplidar_ros2_ws
 rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y
 colcon build --symlink-install
 source install/setup.bash
@@ -243,10 +251,10 @@ Launch a subset:
 
 ```bash
 ros2 launch hardware_bringup all_sensors.launch.py \
-  enable_realsense:=true \
-  enable_arducam:=false \
-  enable_rplidar:=true \
-  enable_hesai:=false
+  use_realsense:=true \
+  use_arducam:=false \
+  use_rplidar:=true \
+  use_hesai:=false
 ```
 
 Override common device settings:
