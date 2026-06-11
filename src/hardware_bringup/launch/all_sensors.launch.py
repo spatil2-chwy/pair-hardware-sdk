@@ -26,7 +26,8 @@ def generate_launch_description():
         DeclareLaunchArgument("arducam_namespace", default_value="arducam"),
         DeclareLaunchArgument("rplidar_model", default_value="a1"),
         DeclareLaunchArgument("rplidar_serial_port", default_value="/dev/ttyUSB0"),
-        DeclareLaunchArgument("rplidar_serial_baudrate", default_value="115200"),
+        DeclareLaunchArgument("rplidar_serial_baudrate", default_value="auto"),
+        DeclareLaunchArgument("rplidar_scan_mode", default_value="auto"),
         DeclareLaunchArgument(
             "hesai_config_file",
             default_value=PathJoinSubstitution(
@@ -62,6 +63,7 @@ def generate_launch_description():
             "model": LaunchConfiguration("rplidar_model"),
             "serial_port": LaunchConfiguration("rplidar_serial_port"),
             "serial_baudrate": LaunchConfiguration("rplidar_serial_baudrate"),
+            "scan_mode": LaunchConfiguration("rplidar_scan_mode"),
         }.items(),
     )
 

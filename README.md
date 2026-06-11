@@ -204,6 +204,19 @@ ros2 launch hardware_bringup rplidar.launch.py model:=a1 serial_port:=/dev/ttyUS
 
 Supported model values are `a1`, `a2m7`, `a2m8`, `a2m12`, `a3`, `s1`, `s1_tcp`, `s2`, `s2e`, `s3`, `t1`, and `c1`.
 
+The bringup wrapper accepts `serial_baudrate:=auto` and `scan_mode:=auto`, which choose model-specific defaults:
+
+| Model | Baud | Scan mode |
+| --- | ---: | --- |
+| `a1` | 115200 | `Sensitivity` |
+| `a2m8` | 115200 | `Sensitivity` |
+| `a2m7`, `a2m12`, `a3`, `s1` | 256000 | `Sensitivity` |
+| `s2`, `s3` | 1000000 | `DenseBoost` |
+| `s2e`, `t1` | 1000000 | `Sensitivity` |
+| `c1` | 460800 | `Standard` |
+
+If the node times out, confirm the exact model printed on the sensor, that the motor is spinning, and that the selected serial port is the RPLIDAR adapter.
+
 ### Hesai
 
 Build the Hesai ROS 2 driver from source:
