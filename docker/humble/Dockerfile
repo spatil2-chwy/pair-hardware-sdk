@@ -22,6 +22,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-rosdep \
     python3-vcstool \
+    ros-humble-rqt \
+    ros-humble-rqt-common-plugins \
+    ros-humble-rqt-image-view \
+    ros-humble-rviz2 \
     ros-humble-v4l2-camera \
     sudo \
     udev \

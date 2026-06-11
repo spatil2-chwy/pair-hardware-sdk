@@ -16,8 +16,30 @@ elif docker run --help 2>/dev/null | grep -q -- '--gpus'; then
 fi
 
 x11_args=()
-if [[ -n "${DISPLAY:-}" && -d /tmp/.X11-unix ]]; then
-  x11_args+=(-e DISPLAY="${DISPLAY}" -v /tmp/.X11-unix:/tmp/.X11-unix:rw)
+if [[ -n "${DISPLAY:-}" ]]; then
+  x11_args+=(-e DISPLAY="${DISPLAY}")
+
+  if [[ -d /tmp/.X11-unix ]]; then
+    x11_args+=(-v /tmp/.X11-unix:/tmp/.X11-unix:rw)
+  fi
+
+  xauth_source="${XAUTHORITY:-}"
+  if [[ -z "${xauth_source}" && -n "${SUDO_USER:-}" ]]; then
+    sudo_home="$(getent passwd "${SUDO_USER}" | cut -d: -f6 || true)"
+    if [[ -n "${sudo_home}" && -f "${sudo_home}/.Xauthority" ]]; then
+      xauth_source="${sudo_home}/.Xauthority"
+    fi
+  fi
+
+  if command -v xauth >/dev/null 2>&1 && [[ -f "${xauth_source}" ]]; then
+    xauth_file=/tmp/pair-hardware-sdk-docker.xauth
+    touch "${xauth_file}"
+    chmod 600 "${xauth_file}"
+    xauth -f "${xauth_source}" nlist "${DISPLAY}" 2>/dev/null \
+      | sed -e 's/^..../ffff/' \
+      | xauth -f "${xauth_file}" nmerge - 2>/dev/null || true
+    x11_args+=(-e XAUTHORITY=/tmp/.docker.xauth -v "${xauth_file}:/tmp/.docker.xauth:ro")
+  fi
 fi
 
 volume_args=()
