@@ -310,6 +310,8 @@ ros2 topic hz /camera/camera/color/image_raw
 ros2 topic hz /arducam/image_raw
 ```
 
+If you have GUI/X forwarding set up later, `rqt_image_view` and `rviz2` are useful optional tools, but they are not required for headless bringup.
+
 Or run the helper:
 
 ```bash
