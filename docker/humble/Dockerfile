@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
+    gnupg \
     iproute2 \
     less \
     libboost-system-dev \
@@ -33,6 +34,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     udev \
     usbutils \
     v4l-utils \
+  && install -d -m 0755 /etc/apt/keyrings \
+  && curl -fsSL https://librealsense.realsenseai.com/Debian/librealsenseai.asc \
+    | gpg --dearmor -o /etc/apt/keyrings/librealsenseai.gpg \
+  && . /etc/os-release \
+  && echo "deb [signed-by=/etc/apt/keyrings/librealsenseai.gpg] https://librealsense.realsenseai.com/Debian/apt-repo ${VERSION_CODENAME} main" \
+    > /etc/apt/sources.list.d/librealsense.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
+    librealsense2-dev \
+    librealsense2-utils \
   && (rosdep init 2>/dev/null || true) \
   && rosdep update \
   && python3 -m pip install --no-cache-dir eclipse-zenoh \
@@ -45,7 +56,7 @@ RUN mkdir -p /opt/pair_vendor_ws/src \
   && git -C /opt/pair_vendor_ws/src/vendor/HesaiLidar_ROS_2.0 submodule update --init --recursive \
   && apt-get update \
   && source /opt/ros/${ROS_DISTRO}/setup.bash \
-  && rosdep install -i --from-paths /opt/pair_vendor_ws/src --rosdistro ${ROS_DISTRO} -y \
+  && rosdep install -i --from-paths /opt/pair_vendor_ws/src --rosdistro ${ROS_DISTRO} --skip-keys=librealsense2 -y \
   && cd /opt/pair_vendor_ws \
   && colcon build --merge-install --symlink-install \
   && rm -rf /var/lib/apt/lists/*

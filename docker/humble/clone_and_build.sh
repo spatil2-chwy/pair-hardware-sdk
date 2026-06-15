@@ -25,7 +25,7 @@ if [[ "${import_vendor_drivers}" == "1" ]]; then
   vcs import src < hardware_sdk.repos
 fi
 
-rosdep install -i --from-path src --rosdistro "${ros_distro}" -y
+rosdep install -i --from-path src --rosdistro "${ros_distro}" --skip-keys=librealsense2 -y
 colcon build --symlink-install "$@"
 
 source install/setup.bash

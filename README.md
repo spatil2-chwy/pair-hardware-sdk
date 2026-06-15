@@ -68,7 +68,7 @@ rosdep update
 
 ROS 2 Humble is built for Ubuntu 22.04, so on a Jetson Thor host running Ubuntu 24.04 use the Jammy-based Humble container in this repo.
 
-Build the image from the repo root. The image installs `v4l2_camera` and builds the vendor driver repos from `hardware_sdk.repos` into `/opt/pair_vendor_ws`:
+Build the image from the repo root. The image installs `v4l2_camera`, the RealSense SDK 2.0 development/runtime packages, and builds the vendor driver repos from `hardware_sdk.repos` into `/opt/pair_vendor_ws`:
 
 ```bash
 ./docker/build_humble_image.sh
