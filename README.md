@@ -29,6 +29,11 @@ hardware-sdk/
     config/
       hesai.yaml
       static_transforms.yaml
+  src/argos_provider_bridge/  # Argos provider bridge over Zenoh
+    config/
+      puffle_go2_provider.yaml
+    launch/
+      puffle_go2_provider.launch.py
 ```
 
 ## Recommended Setup
@@ -41,6 +46,7 @@ Install base tools:
 sudo apt update
 sudo apt install -y \
   python3-colcon-common-extensions \
+  python3-pip \
   python3-rosdep \
   python3-vcstool
 ```
@@ -112,6 +118,8 @@ ros2 pkg prefix rplidar_ros
 ros2 pkg prefix hesai_ros_driver
 ros2 pkg prefix v4l2_camera
 ```
+
+The image also installs the Python Zenoh bindings used by the Argos provider bridge.
 
 ## Install Drivers
 
@@ -251,10 +259,14 @@ From the repo root:
 
 ```bash
 source /opt/ros/$ROS_DISTRO/setup.bash
+python3 -m pip install eclipse-zenoh
 rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y
 colcon build --symlink-install
 source install/setup.bash
 ```
+
+If you are using the Thor Docker image from this repo, `eclipse-zenoh` is already
+installed in the image.
 
 If you want to build vendor drivers from source in this same workspace, import the optional repo manifest first:
 
@@ -272,6 +284,34 @@ Launch everything enabled by default:
 ```bash
 ros2 launch hardware_bringup all_sensors.launch.py
 ```
+
+Start the Argos provider bridge with the sensors:
+
+```bash
+ros2 launch hardware_bringup all_sensors.launch.py use_argos_provider:=true
+```
+
+Or run the bridge separately after the camera drivers are publishing:
+
+```bash
+ros2 launch argos_provider_bridge puffle_go2_provider.launch.py
+```
+
+The default bridge launch loads
+`src/argos_provider_bridge/config/puffle_go2_provider.yaml`, which declares
+provider `puffle-go2`, resources `arducam_001` and `realsense_001`, and their
+ROS topic mappings. For another robot or another camera set, provide a different
+manifest:
+
+```bash
+ros2 launch argos_provider_bridge puffle_go2_provider.launch.py \
+  manifest_path:=/path/to/robot_provider.yaml
+```
+
+The bridge exposes provider `puffle-go2` at
+`argos/providers/puffle-go2/resources/{resource_id}/request/{request_id}` and
+responds on the matching `.../response/{request_id}` key. See
+`docs/argos-provider-bridge.md` for the JSON response shapes.
 
 Launch a subset:
 

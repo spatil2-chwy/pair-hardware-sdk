@@ -19,9 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libusb-1.0-0-dev \
     net-tools \
     python3-colcon-common-extensions \
+    python3-numpy \
     python3-pip \
     python3-rosdep \
     python3-vcstool \
+    python3-yaml \
     ros-humble-rqt \
     ros-humble-rqt-common-plugins \
     ros-humble-rqt-image-view \
@@ -33,6 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     v4l-utils \
   && (rosdep init 2>/dev/null || true) \
   && rosdep update \
+  && python3 -m pip install --no-cache-dir eclipse-zenoh \
   && rm -rf /var/lib/apt/lists/*
 
 COPY hardware_sdk.repos /tmp/hardware_sdk.repos
