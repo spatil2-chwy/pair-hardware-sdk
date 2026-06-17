@@ -282,10 +282,33 @@ class ArgosZenohProvider(Node):
             'resource_id': resource_id,
             'request_id': request_id,
             'ok': ok,
-            'result': result,
+            'result': self._summarize_for_log(result),
             'error': error,
         }
         self.get_logger().info(f'Zenoh response {json.dumps(trace, sort_keys=True)}')
+
+    def _summarize_for_log(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: self._summarize_data_b64(encoded) if key == 'data_b64' else self._summarize_for_log(encoded)
+                for key, encoded in value.items()
+            }
+        if isinstance(value, list):
+            return [self._summarize_for_log(item) for item in value]
+        if isinstance(value, str) and len(value) > 256:
+            return f'<string chars={len(value)} prefix={value[:32]!r}>'
+        return value
+
+    def _summarize_data_b64(self, value: Any) -> Any:
+        if not isinstance(value, str):
+            return self._summarize_for_log(value)
+        padding = value.count('=', max(0, len(value) - 2))
+        byte_count = (len(value) * 3 // 4) - padding
+        return {
+            'encoding': 'base64',
+            'bytes': byte_count,
+            'chars': len(value),
+        }
 
     def _zenoh_config(self):
         config = zenoh.Config()
