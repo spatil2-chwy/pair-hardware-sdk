@@ -45,6 +45,9 @@ Supported request bodies:
 ```
 
 The response `id` is always taken from `{request_id}` in the key.
+The bridge subscribes only to request keys for resources listed in its manifest,
+so another provider process can own a different resource under the same provider
+prefix without racing this bridge.
 
 ## Run
 

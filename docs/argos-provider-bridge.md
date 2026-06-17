@@ -81,8 +81,10 @@ Implemented ops:
 | `camera.intrinsics` | `camera.intrinsics` |
 
 The bridge responds with `ok: false` and an error object when a resource is
-unknown, an op is unsupported, or the requested ROS message has not been cached
-yet.
+configured but an op is unsupported, or the requested ROS message has not been
+cached yet. It only subscribes to request keys for resources in its manifest, so
+unknown resources under the same provider prefix are left for another provider
+process instead of receiving an error response from this bridge.
 
 ## Launch
 

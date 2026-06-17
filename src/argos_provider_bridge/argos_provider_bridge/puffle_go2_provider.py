@@ -72,7 +72,7 @@ class ResourceCache:
 
 class ArgosProviderBridge(Node):
     def __init__(self) -> None:
-        super().__init__("puffle_go2_argos_provider")
+        super().__init__("argos_go2_hardware_provider")
         if zenoh is None:
             raise RuntimeError(
                 "The Python Zenoh bindings are required. Install with "
@@ -136,16 +136,23 @@ class ArgosProviderBridge(Node):
                 )
 
         self._zenoh_session = zenoh.open(zenoh.Config())
-        self._request_key_expr = f"{self.key_prefix}/resources/*/request/*"
-        self._zenoh_subscriber = self._zenoh_session.declare_subscriber(
-            self._request_key_expr, self._on_zenoh_request
-        )
+        self._request_key_exprs = [
+            f"{self.key_prefix}/resources/{resource_id}/request/*"
+            for resource_id in self.resources
+        ]
+        self._zenoh_subscribers = [
+            self._zenoh_session.declare_subscriber(
+                request_key_expr, self._on_zenoh_request
+            )
+            for request_key_expr in self._request_key_exprs
+        ]
 
         resource_summary = ", ".join(
             f"{rid}: {cfg.capabilities}" for rid, cfg in self.resources.items()
         )
         self.get_logger().info(
-            f"Argos provider {self.provider_id} listening on {self._request_key_expr}"
+            f"Argos provider {self.provider_id} listening on "
+            f"{', '.join(self._request_key_exprs)}"
         )
         if manifest_path:
             self.get_logger().info(f"Loaded Argos provider manifest: {manifest_path}")
@@ -347,7 +354,8 @@ class ArgosProviderBridge(Node):
         return bytes(payload)
 
     def destroy_node(self) -> bool:
-        close_or_undeclare(self._zenoh_subscriber)
+        for subscriber in self._zenoh_subscribers:
+            close_or_undeclare(subscriber)
         close_or_undeclare(self._zenoh_session)
         return super().destroy_node()
 

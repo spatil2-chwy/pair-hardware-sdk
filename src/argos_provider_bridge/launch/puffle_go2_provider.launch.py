@@ -23,7 +23,7 @@ def generate_launch_description():
             Node(
                 package="argos_provider_bridge",
                 executable="camera_provider_bridge",
-                name="puffle_go2_argos_provider",
+                name="argos_go2_hardware_provider",
                 output="screen",
                 parameters=[
                     {
