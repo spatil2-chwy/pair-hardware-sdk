@@ -7,7 +7,9 @@ branch="${PAIR_HARDWARE_SDK_BRANCH:-main}"
 workspace="${PAIR_HARDWARE_SDK_WORKSPACE:-/workspaces/pair-hardware-sdk}"
 import_vendor_drivers="${PAIR_HARDWARE_SDK_IMPORT_VENDOR_DRIVERS:-0}"
 
+set +u
 source "/opt/ros/${ros_distro}/setup.bash"
+set -u
 
 mkdir -p "$(dirname "${workspace}")"
 
@@ -25,7 +27,9 @@ if [[ "${import_vendor_drivers}" == "1" ]]; then
   vcs import src < hardware_sdk.repos
 fi
 
-rosdep install -i --from-path src --rosdistro "${ros_distro}" --skip-keys=librealsense2 -y
+rosdep install -i --from-path src --rosdistro "${ros_distro}" --skip-keys="librealsense2 ament_python" -y
 colcon build --symlink-install "$@"
 
+set +u
 source install/setup.bash
+set -u

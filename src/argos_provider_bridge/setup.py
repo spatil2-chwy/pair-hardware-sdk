@@ -22,8 +22,7 @@ setup(
     license="Apache-2.0",
     entry_points={
         "console_scripts": [
-            "camera_provider_bridge = argos_provider_bridge.puffle_go2_provider:main",
-            "puffle_go2_provider = argos_provider_bridge.puffle_go2_provider:main",
+            "hardware_provider_bridge = argos_provider_bridge.hardware_provider_bridge:main",
         ],
     },
 )

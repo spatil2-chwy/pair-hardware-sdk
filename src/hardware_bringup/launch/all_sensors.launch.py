@@ -31,7 +31,7 @@ def generate_launch_description():
                 [
                     FindPackageShare("argos_provider_bridge"),
                     "config",
-                    "puffle_go2_provider.yaml",
+                    "puffle_go2.yaml",
                 ]
             ),
         ),
@@ -92,7 +92,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             [
                 FindPackageShare("argos_provider_bridge"),
-                "/launch/puffle_go2_provider.launch.py",
+                "/launch/hardware_provider_bridge.launch.py",
             ]
         ),
         condition=IfCondition(LaunchConfiguration("use_argos_provider")),
