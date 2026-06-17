@@ -31,9 +31,9 @@ hardware-sdk/
       static_transforms.yaml
   src/argos_provider_bridge/  # Argos provider bridge over Zenoh
     config/
-      puffle_go2_provider.yaml
+      puffle_go2.yaml
     launch/
-      puffle_go2_provider.launch.py
+      hardware_provider_bridge.launch.py
 ```
 
 ## Recommended Setup
@@ -120,6 +120,19 @@ ros2 pkg prefix v4l2_camera
 ```
 
 The image also installs the Python Zenoh bindings used by the Argos provider bridge.
+
+To build, source, and launch the full sensor stack plus Argos hardware provider
+in one command:
+
+```bash
+./docker/run_provider.sh
+```
+
+Pass launch overrides after the script name:
+
+```bash
+./docker/run_provider.sh use_hesai:=false arducam_video_device:=/dev/video2
+```
 
 ## Install Drivers
 
@@ -294,24 +307,38 @@ ros2 launch hardware_bringup all_sensors.launch.py use_argos_provider:=true
 Or run the bridge separately after the camera drivers are publishing:
 
 ```bash
-ros2 launch argos_provider_bridge puffle_go2_provider.launch.py
+ros2 launch argos_provider_bridge hardware_provider_bridge.launch.py
 ```
 
 The default bridge launch loads
-`src/argos_provider_bridge/config/puffle_go2_provider.yaml`, which declares
+`src/argos_provider_bridge/config/puffle_go2.yaml`, which declares
 provider `puffle-go2`, resources `arducam_001` and `realsense_001`, and their
 ROS topic mappings. For another robot or another camera set, provide a different
 manifest:
 
 ```bash
-ros2 launch argos_provider_bridge puffle_go2_provider.launch.py \
-  manifest_path:=/path/to/robot_provider.yaml
+ros2 launch argos_provider_bridge hardware_provider_bridge.launch.py \
+  manifest_path:=/path/to/noodle_go2.yaml
 ```
 
 The bridge exposes provider `puffle-go2` at
 `argos/providers/puffle-go2/resources/{resource_id}/request/{request_id}` and
 responds on the matching `.../response/{request_id}` key. See
 `docs/argos-provider-bridge.md` for the JSON response shapes.
+
+Robot manifests use `<robot_name_or_id>_<robot_type>.yaml`, for example
+`puffle_go2.yaml`, `noodle_go2.yaml`, `haze_spot.yaml`, or `001_spot.yaml`.
+They set `robot_id`, `robot_type`, `provider_id`, `provider_key_root`, resource
+IDs, and ROS topic mappings.
+
+Zenoh routing can be configured with environment variables:
+
+```bash
+ARGOS_ZENOH_CONNECT=tcp/127.0.0.1:7447 \
+ARGOS_ZENOH_LISTEN= \
+ARGOS_ZENOH_MODE= \
+ros2 launch argos_provider_bridge hardware_provider_bridge.launch.py
+```
 
 Launch a subset:
 

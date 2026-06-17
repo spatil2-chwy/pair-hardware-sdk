@@ -1,5 +1,7 @@
+robot_id: puffle
+robot_type: go2
 provider_id: puffle-go2
-key_prefix: argos/providers/puffle-go2
+provider_key_root: argos
 
 resources:
   - resource_id: arducam_001

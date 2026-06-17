@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import json
 import threading
 import time
 from dataclasses import dataclass
@@ -10,14 +9,10 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import rclpy
-from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CameraInfo, Image
 
-try:
-    import zenoh
-except ImportError:  # pragma: no cover - exercised only on hosts missing Zenoh.
-    zenoh = None
+from argos_provider_bridge.core.zenoh_provider import ArgosZenohProvider, ProviderRequestError
 
 try:
     import yaml
@@ -25,11 +20,15 @@ except ImportError:  # pragma: no cover - validated at runtime if a YAML manifes
     yaml = None
 
 
+DEFAULT_ROBOT_ID = "puffle"
+DEFAULT_ROBOT_TYPE = "go2"
 DEFAULT_PROVIDER_ID = "puffle-go2"
-DEFAULT_KEY_PREFIX = "argos/providers/puffle-go2"
+DEFAULT_PROVIDER_KEY_ROOT = "argos"
 DEFAULT_MANIFEST = {
+    "robot_id": DEFAULT_ROBOT_ID,
+    "robot_type": DEFAULT_ROBOT_TYPE,
     "provider_id": DEFAULT_PROVIDER_ID,
-    "key_prefix": DEFAULT_KEY_PREFIX,
+    "provider_key_root": DEFAULT_PROVIDER_KEY_ROOT,
     "resources": [
         {
             "resource_id": "arducam_001",
@@ -70,29 +69,39 @@ class ResourceCache:
     camera_info: Optional[CameraInfo] = None
 
 
-class ArgosProviderBridge(Node):
+class HardwareProviderBridge(ArgosZenohProvider):
     def __init__(self) -> None:
-        super().__init__("argos_go2_hardware_provider")
-        if zenoh is None:
-            raise RuntimeError(
-                "The Python Zenoh bindings are required. Install with "
-                "`python3 -m pip install eclipse-zenoh` inside the ROS 2 environment."
-            )
+        super().__init__(
+            "argos_hardware_provider",
+            target_kind="hardware",
+            default_provider_id=DEFAULT_PROVIDER_ID,
+            default_target_id=DEFAULT_ROBOT_ID,
+            default_provider_key_root=DEFAULT_PROVIDER_KEY_ROOT,
+        )
 
         manifest_path = str(self.declare_parameter("manifest_path", "").value or "")
-        provider_id_override = str(
-            self.declare_parameter("provider_id", "").value or ""
-        )
         key_prefix_override = str(self.declare_parameter("key_prefix", "").value or "")
 
         manifest = load_manifest(manifest_path)
-        self.provider_id = provider_id_override or str(
+        provider_id = self._string_param("provider_id") or str(
             manifest.get("provider_id") or DEFAULT_PROVIDER_ID
         )
-        self.key_prefix = (
-            key_prefix_override
-            or str(manifest.get("key_prefix") or f"argos/providers/{self.provider_id}")
-        ).strip("/")
+        robot_id = str(manifest.get("robot_id") or DEFAULT_ROBOT_ID)
+        self.robot_id = robot_id
+        self.robot_type = str(manifest.get("robot_type") or DEFAULT_ROBOT_TYPE)
+        self.provider_key_root = str(manifest.get("provider_key_root") or DEFAULT_PROVIDER_KEY_ROOT)
+
+        if key_prefix_override:
+            provider_key_root, provider_id = split_argos_key_prefix(key_prefix_override)
+        else:
+            provider_key_root = self.provider_key_root
+
+        self.configure_provider_identity(
+            provider_id=provider_id,
+            target_id=robot_id,
+            provider_key_root=provider_key_root,
+            pair_key_root=self._string_param("pair_key_root"),
+        )
 
         self.resources = resources_from_manifest(manifest)
         self._lock = threading.RLock()
@@ -135,28 +144,73 @@ class ArgosProviderBridge(Node):
                     )
                 )
 
-        self._zenoh_session = zenoh.open(zenoh.Config())
-        self._request_key_exprs = [
-            f"{self.key_prefix}/resources/{resource_id}/request/*"
-            for resource_id in self.resources
-        ]
-        self._zenoh_subscribers = [
-            self._zenoh_session.declare_subscriber(
-                request_key_expr, self._on_zenoh_request
-            )
-            for request_key_expr in self._request_key_exprs
-        ]
-
         resource_summary = ", ".join(
             f"{rid}: {cfg.capabilities}" for rid, cfg in self.resources.items()
         )
         self.get_logger().info(
-            f"Argos provider {self.provider_id} listening on "
-            f"{', '.join(self._request_key_exprs)}"
+            f"Argos hardware provider {self.provider_id} configured for "
+            f"{self.robot_id}_{self.robot_type}"
         )
         if manifest_path:
             self.get_logger().info(f"Loaded Argos provider manifest: {manifest_path}")
         self.get_logger().info(f"Configured resources: {resource_summary}")
+
+    def request_selectors(self) -> list[str]:
+        return [
+            f"{self.keyspace.resource_request_prefix(resource_id)}/*"
+            for resource_id in self.resources
+        ]
+
+    def capability_manifest(self) -> Dict[str, Any]:
+        resources = {}
+        for resource_id, config in self.resources.items():
+            resources[resource_id] = {
+                "kind": "sensor",
+                "capabilities": list(config.capabilities),
+                "topics": {
+                    "rgb": config.rgb_topic,
+                    "camera_info": config.camera_info_topic,
+                    **({"depth": config.depth_topic} if config.depth_topic else {}),
+                },
+                "transport": {
+                    "request_prefix": self.keyspace.resource_request_prefix(resource_id),
+                    "response_prefix": self.keyspace.resource_response_prefix(resource_id),
+                    "event_prefix": self.keyspace.resource_event_prefix(resource_id),
+                    "state_prefix": self.keyspace.resource_state_prefix(resource_id),
+                },
+            }
+        return {
+            "schema_version": "argos.provider.v1",
+            "provider_id": self.provider_id,
+            "robot": {
+                "id": self.robot_id,
+                "type": self.robot_type,
+            },
+            "transport": {
+                "provider_prefix": self.keyspace.provider_prefix,
+                "request_pattern": f"{self.keyspace.provider_prefix}/resources/<resource_id>/request/<request_id>",
+                "response_pattern": f"{self.keyspace.provider_prefix}/resources/<resource_id>/response/<request_id>",
+                "event_pattern": f"{self.keyspace.provider_prefix}/resources/<resource_id>/event/<event_type>",
+            },
+            "resources": resources,
+        }
+
+    def dispatch(self, resource_id: str, op: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        del args
+        if resource_id not in self.resources:
+            raise ProviderRequestError("unknown_resource", f"Unknown resource_id {resource_id}")
+        if op == "camera.latest_image":
+            return self._latest_image_response(resource_id)
+        if op == "camera.latest_rgbd":
+            return self._latest_rgbd_response(resource_id)
+        if op == "camera.intrinsics":
+            return self._intrinsics_response(resource_id)
+        raise ProviderRequestError("unsupported_op", f"Unsupported op {op}")
+
+    def response_payload_for_exception(self, exc: Exception) -> Tuple[None, Dict[str, str]]:
+        if isinstance(exc, ProviderRequestError):
+            return None, {"code": exc.code, "message": exc.message}
+        return None, {"code": "bad_request", "message": f"Could not decode or handle request: {exc}"}
 
     def _cache_color_image(self, resource_id: str, msg: Image) -> None:
         with self._lock:
@@ -170,123 +224,57 @@ class ArgosProviderBridge(Node):
         with self._lock:
             self._cache[resource_id].camera_info = msg
 
-    def _on_zenoh_request(self, sample: Any) -> None:
-        key = self._sample_key(sample)
-        parsed = self._parse_request_key(key)
-        if parsed is None:
-            self.get_logger().warning(f"Ignoring unexpected Argos request key: {key}")
-            return
-
-        resource_id, request_id = parsed
-        try:
-            request = json.loads(self._sample_payload(sample).decode("utf-8"))
-            response = self._handle_request(resource_id, request_id, request)
-        except Exception as exc:  # Keep malformed requests from killing the subscriber.
-            self.get_logger().warning(f"Failed Argos request {request_id}: {exc}")
-            response = self._error_response(
-                request_id,
-                "bad_request",
-                f"Could not decode or handle request: {exc}",
-            )
-
-        self._send_response(resource_id, request_id, response)
-
-    def _handle_request(
-        self, resource_id: str, request_id: str, request: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        if resource_id not in self.resources:
-            return self._error_response(
-                request_id, "unknown_resource", f"Unknown resource_id {resource_id}"
-            )
-
-        op = request.get("op")
-        if op == "camera.latest_image":
-            return self._latest_image_response(resource_id, request_id)
-        if op == "camera.latest_rgbd":
-            return self._latest_rgbd_response(resource_id, request_id)
-        if op == "camera.intrinsics":
-            return self._intrinsics_response(resource_id, request_id)
-
-        return self._error_response(request_id, "unsupported_op", f"Unsupported op {op}")
-
-    def _latest_image_response(self, resource_id: str, request_id: str) -> Dict[str, Any]:
+    def _latest_image_response(self, resource_id: str) -> Dict[str, Any]:
         if "camera.rgb" not in self.resources[resource_id].capabilities:
-            return self._error_response(
-                request_id, "unsupported_op", f"{resource_id} does not support camera.rgb"
-            )
+            raise ProviderRequestError("unsupported_op", f"{resource_id} does not support camera.rgb")
 
         color_image = self._latest_cached(resource_id).color_image
         if color_image is None:
-            return self._error_response(
-                request_id, "not_ready", f"{resource_id} has no cached RGB image yet"
-            )
+            raise ProviderRequestError("not_ready", f"{resource_id} has no cached RGB image yet")
 
         stamp_s = stamp_to_seconds(color_image)
-        return self._ok_response(
-            request_id,
-            {
-                "resource_id": resource_id,
-                "captured_at": stamp_s,
-                "stamp_s": stamp_s,
-                "image": image_to_color_payload(color_image),
-            },
-        )
+        return {
+            "resource_id": resource_id,
+            "captured_at": stamp_s,
+            "stamp_s": stamp_s,
+            "image": image_to_color_payload(color_image),
+        }
 
-    def _latest_rgbd_response(self, resource_id: str, request_id: str) -> Dict[str, Any]:
+    def _latest_rgbd_response(self, resource_id: str) -> Dict[str, Any]:
         config = self.resources[resource_id]
         if "camera.rgbd" not in config.capabilities:
-            return self._error_response(
-                request_id, "unsupported_op", f"{resource_id} does not support camera.rgbd"
-            )
+            raise ProviderRequestError("unsupported_op", f"{resource_id} does not support camera.rgbd")
 
         cached = self._latest_cached(resource_id)
         if cached.color_image is None:
-            return self._error_response(
-                request_id, "not_ready", f"{resource_id} has no cached color image yet"
-            )
+            raise ProviderRequestError("not_ready", f"{resource_id} has no cached color image yet")
         if cached.depth_image is None:
-            return self._error_response(
-                request_id, "not_ready", f"{resource_id} has no cached depth image yet"
-            )
+            raise ProviderRequestError("not_ready", f"{resource_id} has no cached depth image yet")
 
-        return self._ok_response(
-            request_id,
-            {
-                "color_image": image_to_color_payload(cached.color_image),
-                "depth_m": image_to_depth_m_payload(
-                    cached.depth_image, config.depth_scale
-                ),
-                "color_stamp_s": stamp_to_seconds(cached.color_image),
-                "depth_stamp_s": stamp_to_seconds(cached.depth_image),
-            },
-        )
+        return {
+            "color_image": image_to_color_payload(cached.color_image),
+            "depth_m": image_to_depth_m_payload(cached.depth_image, config.depth_scale),
+            "color_stamp_s": stamp_to_seconds(cached.color_image),
+            "depth_stamp_s": stamp_to_seconds(cached.depth_image),
+        }
 
-    def _intrinsics_response(self, resource_id: str, request_id: str) -> Dict[str, Any]:
+    def _intrinsics_response(self, resource_id: str) -> Dict[str, Any]:
         if "camera.intrinsics" not in self.resources[resource_id].capabilities:
-            return self._error_response(
-                request_id,
-                "unsupported_op",
-                f"{resource_id} does not support camera.intrinsics",
-            )
+            raise ProviderRequestError("unsupported_op", f"{resource_id} does not support camera.intrinsics")
 
         camera_info = self._latest_cached(resource_id).camera_info
         if camera_info is None:
-            return self._error_response(
-                request_id, "not_ready", f"{resource_id} has no cached CameraInfo yet"
-            )
+            raise ProviderRequestError("not_ready", f"{resource_id} has no cached CameraInfo yet")
 
-        return self._ok_response(
-            request_id,
-            {
-                "fx": float(camera_info.k[0]),
-                "fy": float(camera_info.k[4]),
-                "cx": float(camera_info.k[2]),
-                "cy": float(camera_info.k[5]),
-                "width": int(camera_info.width),
-                "height": int(camera_info.height),
-                "stamp_s": stamp_to_seconds(camera_info),
-            },
-        )
+        return {
+            "fx": float(camera_info.k[0]),
+            "fy": float(camera_info.k[4]),
+            "cx": float(camera_info.k[2]),
+            "cy": float(camera_info.k[5]),
+            "width": int(camera_info.width),
+            "height": int(camera_info.height),
+            "stamp_s": stamp_to_seconds(camera_info),
+        }
 
     def _latest_cached(self, resource_id: str) -> ResourceCache:
         with self._lock:
@@ -296,68 +284,6 @@ class ArgosProviderBridge(Node):
                 depth_image=cached.depth_image,
                 camera_info=cached.camera_info,
             )
-
-    def _ok_response(self, request_id: str, result: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "id": request_id,
-            "type": "response",
-            "ok": True,
-            "result": result,
-            "error": None,
-            "ts": time.time(),
-        }
-
-    def _error_response(
-        self, request_id: str, code: str, message: str
-    ) -> Dict[str, Any]:
-        return {
-            "id": request_id,
-            "type": "response",
-            "ok": False,
-            "result": None,
-            "error": {"code": code, "message": message},
-            "ts": time.time(),
-        }
-
-    def _send_response(
-        self, resource_id: str, request_id: str, response: Dict[str, Any]
-    ) -> None:
-        response_key = (
-            f"{self.key_prefix}/resources/{resource_id}/response/{request_id}"
-        )
-        payload = json.dumps(response, separators=(",", ":")).encode("utf-8")
-        self._zenoh_session.put(response_key, payload)
-
-    def _parse_request_key(self, key: str) -> Optional[Tuple[str, str]]:
-        prefix = f"{self.key_prefix}/resources/"
-        if not key.startswith(prefix):
-            return None
-        parts = key[len(prefix) :].split("/")
-        if len(parts) != 3 or parts[1] != "request" or not parts[0] or not parts[2]:
-            return None
-        return parts[0], parts[2]
-
-    @staticmethod
-    def _sample_key(sample: Any) -> str:
-        key_expr = getattr(sample, "key_expr", None)
-        if key_expr is None:
-            key_expr = getattr(sample, "keyexpr", None)
-        return str(key_expr)
-
-    @staticmethod
-    def _sample_payload(sample: Any) -> bytes:
-        payload = sample.payload
-        if hasattr(payload, "to_bytes"):
-            return bytes(payload.to_bytes())
-        if hasattr(payload, "deserialize"):
-            return payload.deserialize(bytes)
-        return bytes(payload)
-
-    def destroy_node(self) -> bool:
-        for subscriber in self._zenoh_subscribers:
-            close_or_undeclare(subscriber)
-        close_or_undeclare(self._zenoh_session)
-        return super().destroy_node()
 
 
 def image_to_color_payload(msg: Image) -> Dict[str, Any]:
@@ -425,9 +351,7 @@ def resources_from_manifest(manifest: Dict[str, Any]) -> Dict[str, ResourceConfi
             raise ValueError(f"{resource_id} must define topics")
 
         rgb_topic = require_string(topics, "rgb", f"{resource_id}.topics")
-        camera_info_topic = require_string(
-            topics, "camera_info", f"{resource_id}.topics"
-        )
+        camera_info_topic = require_string(topics, "camera_info", f"{resource_id}.topics")
         depth_topic = optional_string(topics, "depth")
         depth_scale = float(resource.get("depth_scale", 0.001))
 
@@ -444,6 +368,13 @@ def resources_from_manifest(manifest: Dict[str, Any]) -> Dict[str, ResourceConfi
         )
 
     return configs
+
+
+def split_argos_key_prefix(key_prefix: str) -> Tuple[str, str]:
+    parts = key_prefix.strip("/").split("/")
+    if len(parts) >= 3 and parts[-2] == "providers" and parts[-1]:
+        return "/".join(parts[:-2]), parts[-1]
+    raise ValueError("key_prefix must look like <root>/providers/<provider_id>")
 
 
 def require_string(mapping: Dict[str, Any], key: str, path: str) -> str:
@@ -540,20 +471,14 @@ def stamp_to_seconds(msg: Any) -> float:
     return seconds if seconds > 0.0 else time.time()
 
 
-def close_or_undeclare(obj: Any) -> None:
-    for method_name in ("undeclare", "close"):
-        method = getattr(obj, method_name, None)
-        if callable(method):
-            method()
-            return
-
-
 def main(args: Optional[list[str]] = None) -> None:
     rclpy.init(args=args)
-    node = ArgosProviderBridge()
+    node = HardwareProviderBridge()
     try:
+        node.start_zenoh()
         rclpy.spin(node)
     finally:
+        node.stop_zenoh()
         node.destroy_node()
         rclpy.shutdown()
 

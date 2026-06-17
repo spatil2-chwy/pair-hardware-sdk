@@ -1,43 +1,63 @@
-# Argos Provider Bridge
+# Argos Hardware Provider Bridge
 
 The Argos bridge is intentionally separate from `hardware_bringup`.
 
 `hardware_bringup` starts vendor ROS 2 drivers and standardizes local topics.
-`argos_provider_bridge` loads a provider manifest, subscribes to the configured
-camera topics, caches the latest camera state, and exposes Argos
-provider request/response JSON over Zenoh.
+`argos_provider_bridge` loads a robot manifest, subscribes to configured sensor
+topics, caches the latest camera state, and exposes Argos request/response JSON
+over Zenoh.
 
 ```text
-ROS 2 camera topics
+ROS 2 sensor topics
         |
         v
-argos_provider_bridge cache
+hardware_provider_bridge cache
         |
         v
 Zenoh request/response JSON
 ```
 
-## Scaling Model
+## Naming Model
 
-The bridge code is generic for camera RGB, RGBD, and intrinsics resources. The
-robot-specific parts live in a YAML manifest:
+Use one manifest per robot/sensor configuration. Name manifests as
+`<robot_name_or_id>_<robot_type>.yaml`.
 
-- provider ID
-- Zenoh key prefix
-- resource IDs
-- resource capabilities
-- ROS image, depth, and CameraInfo topics
-- per-depth-topic scale into meters
+Examples:
 
-For one robot with multiple cameras, use one manifest with multiple resources.
-For the same camera system on another robot, reuse the same ROS bringup pattern
-and provide a different manifest with that robot's provider ID, key prefix,
-resource IDs, and topic namespaces.
+```text
+puffle_go2.yaml
+noodle_go2.yaml
+haze_spot.yaml
+001_spot.yaml
+```
 
-## Default Provider
+The default provider uses:
 
-- Provider ID: `puffle-go2`
-- Key prefix: `argos/providers/puffle-go2`
+```text
+robot_id=puffle
+robot_type=go2
+provider_id=puffle-go2
+key_prefix=argos/providers/puffle-go2
+```
+
+Requests use:
+
+```text
+argos/providers/puffle-go2/resources/{resource_id}/request/{request_id}
+```
+
+Responses use:
+
+```text
+argos/providers/puffle-go2/resources/{resource_id}/response/{request_id}
+```
+
+The provider also publishes its manifest and heartbeat:
+
+```text
+argos/providers/puffle-go2/manifest
+argos/providers/puffle-go2/heartbeat
+```
 
 ## Default Resources
 
@@ -58,73 +78,47 @@ The bridge expects RealSense depth to be aligned to color. If your driver only
 publishes unaligned depth, enable `align_depth.enable:=true` in the RealSense
 launch or point the manifest's `topics.depth` at a suitable aligned topic.
 
-## Operations
-
-Requests use:
-
-```text
-argos/providers/puffle-go2/resources/{resource_id}/request/{request_id}
-```
-
-Responses use:
-
-```text
-argos/providers/puffle-go2/resources/{resource_id}/response/{request_id}
-```
-
-Implemented ops:
-
-| Capability | Op |
-| --- | --- |
-| `camera.rgb` | `camera.latest_image` |
-| `camera.rgbd` | `camera.latest_rgbd` |
-| `camera.intrinsics` | `camera.intrinsics` |
-
-The bridge responds with `ok: false` and an error object when a resource is
-configured but an op is unsupported, or the requested ROS message has not been
-cached yet. It only subscribes to request keys for resources in its manifest, so
-unknown resources under the same provider prefix are left for another provider
-process instead of receiving an error response from this bridge.
-
 ## Launch
 
-```bash
-ros2 launch argos_provider_bridge puffle_go2_provider.launch.py
-```
-
-The generic launch entry point is equivalent:
+Run only the provider bridge after camera drivers are publishing:
 
 ```bash
-ros2 launch argos_provider_bridge camera_provider_bridge.launch.py
+ros2 launch argos_provider_bridge hardware_provider_bridge.launch.py
 ```
 
-That command loads the installed default manifest:
-
-```text
-share/argos_provider_bridge/config/puffle_go2_provider.yaml
-```
-
-Or with all sensors:
+Or start it with all sensors:
 
 ```bash
 ros2 launch hardware_bringup all_sensors.launch.py use_argos_provider:=true
 ```
 
-Use another manifest for another robot or a larger camera set:
+Use another robot or camera set:
 
 ```bash
-ros2 launch argos_provider_bridge puffle_go2_provider.launch.py \
-  manifest_path:=/path/to/robot_provider.yaml
+ros2 launch argos_provider_bridge hardware_provider_bridge.launch.py \
+  manifest_path:=/path/to/noodle_go2.yaml
 ```
 
-You can override the provider ID or key prefix at launch time without modifying
-the manifest:
+Override the provider key at launch time:
 
 ```bash
-ros2 launch argos_provider_bridge puffle_go2_provider.launch.py \
-  manifest_path:=/path/to/robot_provider.yaml \
-  provider_id:=puffle-go2-lab \
-  key_prefix:=argos/providers/puffle-go2-lab
+ros2 launch argos_provider_bridge hardware_provider_bridge.launch.py \
+  manifest_path:=/path/to/noodle_go2.yaml \
+  provider_id:=noodle_go2_lab
+```
+
+Configure Zenoh routing through environment or launch args:
+
+```bash
+ARGOS_ZENOH_CONNECT=tcp/127.0.0.1:7447 \
+ros2 launch argos_provider_bridge hardware_provider_bridge.launch.py
+```
+
+```bash
+ros2 launch argos_provider_bridge hardware_provider_bridge.launch.py \
+  zenoh_connect:=tcp/127.0.0.1:7447 \
+  zenoh_listen:=tcp/0.0.0.0:7447 \
+  zenoh_mode:=peer
 ```
 
 The Python Zenoh bindings must be available in the same environment:
@@ -136,8 +130,10 @@ python3 -m pip install eclipse-zenoh
 ## Manifest Shape
 
 ```yaml
+robot_id: puffle
+robot_type: go2
 provider_id: puffle-go2
-key_prefix: argos/providers/puffle-go2
+provider_key_root: argos
 
 resources:
   - resource_id: arducam_001
@@ -160,22 +156,25 @@ resources:
     depth_scale: 0.001
 ```
 
-To add a second RealSense on the same robot, add another resource with its own
-resource ID and ROS namespace:
+For an unnamed robot:
 
 ```yaml
-  - resource_id: realsense_rear_001
-    capabilities:
-      - camera.rgb
-      - camera.rgbd
-      - camera.intrinsics
-    topics:
-      rgb: /rear_camera/camera/color/image_raw
-      depth: /rear_camera/camera/aligned_depth_to_color/image_raw
-      camera_info: /rear_camera/camera/color/camera_info
-    depth_scale: 0.001
+robot_id: "001"
+robot_type: spot
+provider_id: 001_spot
+provider_key_root: argos
 ```
 
-Resource IDs only need to be unique within a provider. Provider IDs and key
-prefixes should be unique per robot so Argos clients can address the intended
-robot unambiguously.
+## Operations
+
+| Capability | Op |
+| --- | --- |
+| `camera.rgb` | `camera.latest_image` |
+| `camera.rgbd` | `camera.latest_rgbd` |
+| `camera.intrinsics` | `camera.intrinsics` |
+
+The bridge responds with `ok: false` and a structured error object when a
+configured resource does not support an op or the requested ROS message has not
+been cached yet. It subscribes only to request keys for resources in its
+manifest, so unknown resources under the same provider prefix can be owned by
+another provider process.
