@@ -1,0 +1,22 @@
+provider_id: puffle-go2
+key_prefix: argos/providers/puffle-go2
+
+resources:
+  - resource_id: arducam_001
+    capabilities:
+      - camera.rgb
+      - camera.intrinsics
+    topics:
+      rgb: /arducam/image_raw
+      camera_info: /arducam/camera_info
+
+  - resource_id: realsense_001
+    capabilities:
+      - camera.rgb
+      - camera.rgbd
+      - camera.intrinsics
+    topics:
+      rgb: /camera/camera/color/image_raw
+      depth: /camera/camera/aligned_depth_to_color/image_raw
+      camera_info: /camera/camera/color/camera_info
+    depth_scale: 0.001

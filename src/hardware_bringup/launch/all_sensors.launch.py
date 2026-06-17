@@ -14,19 +14,33 @@ def local_launch(filename):
 
 def generate_launch_description():
     args = [
-        DeclareLaunchArgument("enable_realsense", default_value="true"),
-        DeclareLaunchArgument("enable_arducam", default_value="true"),
-        DeclareLaunchArgument("enable_rplidar", default_value="true"),
-        DeclareLaunchArgument("enable_hesai", default_value="true"),
+        DeclareLaunchArgument("use_realsense", default_value="true"),
+        DeclareLaunchArgument("use_arducam", default_value="true"),
+        DeclareLaunchArgument("use_rplidar", default_value="true"),
+        DeclareLaunchArgument("use_hesai", default_value="true"),
+        DeclareLaunchArgument("use_argos_provider", default_value="false"),
         DeclareLaunchArgument("realsense_camera_namespace", default_value="camera"),
         DeclareLaunchArgument("realsense_camera_name", default_value="camera"),
         DeclareLaunchArgument("realsense_color_profile", default_value="640,480,15"),
         DeclareLaunchArgument("realsense_depth_profile", default_value="640,480,15"),
         DeclareLaunchArgument("arducam_video_device", default_value="/dev/video0"),
         DeclareLaunchArgument("arducam_namespace", default_value="arducam"),
+        DeclareLaunchArgument(
+            "argos_manifest_path",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("argos_provider_bridge"),
+                    "config",
+                    "puffle_go2_provider.yaml",
+                ]
+            ),
+        ),
+        DeclareLaunchArgument("argos_provider_id", default_value=""),
+        DeclareLaunchArgument("argos_key_prefix", default_value=""),
         DeclareLaunchArgument("rplidar_model", default_value="a1"),
         DeclareLaunchArgument("rplidar_serial_port", default_value="/dev/ttyUSB0"),
-        DeclareLaunchArgument("rplidar_serial_baudrate", default_value="115200"),
+        DeclareLaunchArgument("rplidar_serial_baudrate", default_value="auto"),
+        DeclareLaunchArgument("rplidar_scan_mode", default_value="auto"),
         DeclareLaunchArgument(
             "hesai_config_file",
             default_value=PathJoinSubstitution(
@@ -37,7 +51,7 @@ def generate_launch_description():
 
     realsense = IncludeLaunchDescription(
         local_launch("realsense.launch.py"),
-        condition=IfCondition(LaunchConfiguration("enable_realsense")),
+        condition=IfCondition(LaunchConfiguration("use_realsense")),
         launch_arguments={
             "camera_namespace": LaunchConfiguration("realsense_camera_namespace"),
             "camera_name": LaunchConfiguration("realsense_camera_name"),
@@ -48,7 +62,7 @@ def generate_launch_description():
 
     arducam = IncludeLaunchDescription(
         local_launch("arducam_v4l2.launch.py"),
-        condition=IfCondition(LaunchConfiguration("enable_arducam")),
+        condition=IfCondition(LaunchConfiguration("use_arducam")),
         launch_arguments={
             "arducam_namespace": LaunchConfiguration("arducam_namespace"),
             "video_device": LaunchConfiguration("arducam_video_device"),
@@ -57,20 +71,38 @@ def generate_launch_description():
 
     rplidar = IncludeLaunchDescription(
         local_launch("rplidar.launch.py"),
-        condition=IfCondition(LaunchConfiguration("enable_rplidar")),
+        condition=IfCondition(LaunchConfiguration("use_rplidar")),
         launch_arguments={
             "model": LaunchConfiguration("rplidar_model"),
             "serial_port": LaunchConfiguration("rplidar_serial_port"),
             "serial_baudrate": LaunchConfiguration("rplidar_serial_baudrate"),
+            "scan_mode": LaunchConfiguration("rplidar_scan_mode"),
         }.items(),
     )
 
     hesai = IncludeLaunchDescription(
         local_launch("hesai.launch.py"),
-        condition=IfCondition(LaunchConfiguration("enable_hesai")),
+        condition=IfCondition(LaunchConfiguration("use_hesai")),
         launch_arguments={
             "hesai_config_file": LaunchConfiguration("hesai_config_file")
         }.items(),
     )
 
-    return LaunchDescription(args + [realsense, arducam, rplidar, hesai])
+    argos_provider = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            [
+                FindPackageShare("argos_provider_bridge"),
+                "/launch/puffle_go2_provider.launch.py",
+            ]
+        ),
+        condition=IfCondition(LaunchConfiguration("use_argos_provider")),
+        launch_arguments={
+            "manifest_path": LaunchConfiguration("argos_manifest_path"),
+            "provider_id": LaunchConfiguration("argos_provider_id"),
+            "key_prefix": LaunchConfiguration("argos_key_prefix"),
+        }.items(),
+    )
+
+    return LaunchDescription(
+        args + [realsense, arducam, rplidar, hesai, argos_provider]
+    )

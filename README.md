@@ -29,6 +29,11 @@ hardware-sdk/
     config/
       hesai.yaml
       static_transforms.yaml
+  src/argos_provider_bridge/  # Argos provider bridge over Zenoh
+    config/
+      puffle_go2_provider.yaml
+    launch/
+      puffle_go2_provider.launch.py
 ```
 
 ## Recommended Setup
@@ -41,6 +46,7 @@ Install base tools:
 sudo apt update
 sudo apt install -y \
   python3-colcon-common-extensions \
+  python3-pip \
   python3-rosdep \
   python3-vcstool
 ```
@@ -58,15 +64,82 @@ sudo rosdep init
 rosdep update
 ```
 
+## Docker On Jetson Thor
+
+ROS 2 Humble is built for Ubuntu 22.04, so on a Jetson Thor host running Ubuntu 24.04 use the Jammy-based Humble container in this repo.
+
+Build the image from the repo root. The image installs `v4l2_camera`, the RealSense SDK 2.0 development/runtime packages, and builds the vendor driver repos from `hardware_sdk.repos` into `/opt/pair_vendor_ws`:
+
+```bash
+./docker/build_humble_image.sh
+```
+
+To force a clean rebuild after Dockerfile or driver changes:
+
+```bash
+docker rm -f pair-hardware-sdk-humble 2>/dev/null || true
+docker rmi pair-hardware-sdk:humble 2>/dev/null || true
+./docker/build_humble_image.sh
+```
+
+Run an interactive container against this local checkout. This is the right path for the local `thor-test` branch before it is pushed to GitHub:
+
+```bash
+./docker/run_humble.sh
+```
+
+Inside the container, build the mounted workspace:
+
+```bash
+rosdep install -i --from-path src --rosdistro humble -y
+colcon build --symlink-install
+source install/setup.bash
+```
+
+To clone from GitHub and build inside a container-managed workspace instead of mounting the local checkout:
+
+```bash
+PAIR_HARDWARE_SDK_MOUNT_LOCAL=0 ./docker/run_humble.sh clone-and-build-pair-hardware-sdk
+```
+
+To clone a branch after it exists on GitHub:
+
+```bash
+PAIR_HARDWARE_SDK_MOUNT_LOCAL=0 PAIR_HARDWARE_SDK_BRANCH=thor-test ./docker/run_humble.sh clone-and-build-pair-hardware-sdk
+```
+
+For local-only branch work, use the mounted checkout flow above. The run wrapper uses host networking, `/dev`, privileged mode, and the NVIDIA runtime when Docker reports one. That is intentional for ROS 2 discovery plus USB, serial, video, and LiDAR access on Thor.
+
+The image entrypoint sources `/opt/pair_vendor_ws/install/setup.bash` before the mounted SDK workspace, so these should be discoverable in every fresh container:
+
+```bash
+ros2 pkg prefix realsense2_camera
+ros2 pkg prefix rplidar_ros
+ros2 pkg prefix hesai_ros_driver
+ros2 pkg prefix v4l2_camera
+```
+
+The image also installs the Python Zenoh bindings used by the Argos provider bridge.
+
 ## Install Drivers
+
+If you are using the Thor Docker image from this repo, the normal driver dependencies are already in the image. The sections below are mainly for host installs, debugging, or rebuilding a driver outside Docker.
 
 ### RealSense
 
-If the package exists for your distro:
+First check whether your container/OS has the ROS package available:
 
 ```bash
-sudo apt install -y ros-$ROS_DISTRO-realsense2-*
+apt search ros-$ROS_DISTRO-realsense
 ```
+
+If you see `ros-$ROS_DISTRO-realsense2-camera`, install it:
+
+```bash
+sudo apt install -y ros-$ROS_DISTRO-realsense2-camera
+```
+
+If apt cannot find it, build `realsense-ros` from source using `hardware_sdk.repos` or clone it into another ROS 2 workspace and source that workspace before launching `hardware_bringup`.
 
 Direct vendor command:
 
@@ -114,10 +187,10 @@ For a model-specific Arducam SDK, install the vendor package and add a new launc
 Slamtec's ROS 2 package is usually built from source:
 
 ```bash
-mkdir -p ~/ros2_ws/src
-cd ~/ros2_ws/src
+mkdir -p ~/rplidar_ros2_ws/src
+cd ~/rplidar_ros2_ws/src
 git clone -b ros2 https://github.com/Slamtec/rplidar_ros.git
-cd ~/ros2_ws
+cd ~/rplidar_ros2_ws
 rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y
 colcon build --symlink-install
 source install/setup.bash
@@ -138,6 +211,19 @@ ros2 launch hardware_bringup rplidar.launch.py model:=a1 serial_port:=/dev/ttyUS
 ```
 
 Supported model values are `a1`, `a2m7`, `a2m8`, `a2m12`, `a3`, `s1`, `s1_tcp`, `s2`, `s2e`, `s3`, `t1`, and `c1`.
+
+The bringup wrapper accepts `serial_baudrate:=auto` and `scan_mode:=auto`, which choose model-specific defaults:
+
+| Model | Baud | Scan mode |
+| --- | ---: | --- |
+| `a1` | 115200 | `Sensitivity` |
+| `a2m8` | 115200 | `Sensitivity` |
+| `a2m7`, `a2m12`, `a3`, `s1` | 256000 | `Sensitivity` |
+| `s2`, `s3` | 1000000 | `DenseBoost` |
+| `s2e`, `t1` | 1000000 | `Sensitivity` |
+| `c1` | 460800 | `Standard` |
+
+If the node times out, confirm the exact model printed on the sensor, that the motor is spinning, and that the selected serial port is the RPLIDAR adapter.
 
 ### Hesai
 
@@ -173,10 +259,14 @@ From the repo root:
 
 ```bash
 source /opt/ros/$ROS_DISTRO/setup.bash
+python3 -m pip install eclipse-zenoh
 rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y
 colcon build --symlink-install
 source install/setup.bash
 ```
+
+If you are using the Thor Docker image from this repo, `eclipse-zenoh` is already
+installed in the image.
 
 If you want to build vendor drivers from source in this same workspace, import the optional repo manifest first:
 
@@ -195,14 +285,42 @@ Launch everything enabled by default:
 ros2 launch hardware_bringup all_sensors.launch.py
 ```
 
+Start the Argos provider bridge with the sensors:
+
+```bash
+ros2 launch hardware_bringup all_sensors.launch.py use_argos_provider:=true
+```
+
+Or run the bridge separately after the camera drivers are publishing:
+
+```bash
+ros2 launch argos_provider_bridge puffle_go2_provider.launch.py
+```
+
+The default bridge launch loads
+`src/argos_provider_bridge/config/puffle_go2_provider.yaml`, which declares
+provider `puffle-go2`, resources `arducam_001` and `realsense_001`, and their
+ROS topic mappings. For another robot or another camera set, provide a different
+manifest:
+
+```bash
+ros2 launch argos_provider_bridge puffle_go2_provider.launch.py \
+  manifest_path:=/path/to/robot_provider.yaml
+```
+
+The bridge exposes provider `puffle-go2` at
+`argos/providers/puffle-go2/resources/{resource_id}/request/{request_id}` and
+responds on the matching `.../response/{request_id}` key. See
+`docs/argos-provider-bridge.md` for the JSON response shapes.
+
 Launch a subset:
 
 ```bash
 ros2 launch hardware_bringup all_sensors.launch.py \
-  enable_realsense:=true \
-  enable_arducam:=false \
-  enable_rplidar:=true \
-  enable_hesai:=false
+  use_realsense:=true \
+  use_arducam:=false \
+  use_rplidar:=true \
+  use_hesai:=false
 ```
 
 Override common device settings:
@@ -231,6 +349,8 @@ ros2 topic hz /lidar_points
 ros2 topic hz /camera/camera/color/image_raw
 ros2 topic hz /arducam/image_raw
 ```
+
+If you have GUI/X forwarding set up later, `rqt_image_view` and `rviz2` are useful optional tools, but they are not required for headless bringup.
 
 Or run the helper:
 
