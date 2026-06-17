@@ -91,7 +91,7 @@ Run an interactive container against this local checkout. This is the right path
 Inside the container, build the mounted workspace:
 
 ```bash
-rosdep install -i --from-path src --rosdistro humble -y
+rosdep install -i --from-path src --rosdistro humble --skip-keys="librealsense2 ament_python" -y
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -273,7 +273,7 @@ From the repo root:
 ```bash
 source /opt/ros/$ROS_DISTRO/setup.bash
 python3 -m pip install eclipse-zenoh
-rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y
+rosdep install -i --from-path src --rosdistro $ROS_DISTRO --skip-keys="librealsense2 ament_python" -y
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -285,7 +285,7 @@ If you want to build vendor drivers from source in this same workspace, import t
 
 ```bash
 vcs import src < hardware_sdk.repos
-rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y
+rosdep install -i --from-path src --rosdistro $ROS_DISTRO --skip-keys="librealsense2 ament_python" -y
 colcon build --symlink-install
 source install/setup.bash
 ```

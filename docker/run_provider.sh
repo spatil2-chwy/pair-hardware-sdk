@@ -13,7 +13,7 @@ exec "${repo_root}/docker/run_humble.sh" bash -lc '
 set -eo pipefail
 source /opt/ros/${ROS_DISTRO:-humble}/setup.bash
 set -u
-rosdep install -i --from-path src --rosdistro ${ROS_DISTRO:-humble} --skip-keys=librealsense2 -y
+rosdep install -i --from-path src --rosdistro ${ROS_DISTRO:-humble} --skip-keys="librealsense2 ament_python" -y
 colcon build --symlink-install
 set +u
 source install/setup.bash
