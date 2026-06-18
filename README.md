@@ -345,10 +345,31 @@ Launch a subset:
 ```bash
 ros2 launch hardware_bringup all_sensors.launch.py \
   use_realsense:=true \
+  use_realsense_001:=true \
+  use_realsense_002:=false \
   use_arducam:=false \
   use_rplidar:=true \
   use_hesai:=false
 ```
+
+`use_realsense` is the master RealSense switch. `use_realsense_001` and
+`use_realsense_002` control the logical RealSense resources exposed to Argos.
+Use the camera's RealSense serial number to bind a logical resource to a
+specific physical USB camera:
+
+```bash
+ros2 launch hardware_bringup all_sensors.launch.py \
+  use_argos_provider:=true \
+  use_realsense_001:=true \
+  use_realsense_002:=true \
+  realsense_001_serial_no:=123456789012 \
+  realsense_002_serial_no:=987654321098
+```
+
+The default ROS graph names RealSense cameras as `/camera/<resource_id>/...`,
+for example `/camera/realsense_001/color/image_raw`. The serial number is only
+the hardware selector; keep Argos `resource_id` values stable across camera
+replacements.
 
 Override common device settings:
 
@@ -373,7 +394,7 @@ ros2 node list
 ros2 topic list
 ros2 topic hz /scan
 ros2 topic hz /lidar_points
-ros2 topic hz /camera/camera/color/image_raw
+ros2 topic hz /camera/realsense_001/color/image_raw
 ros2 topic hz /arducam/image_raw
 ```
 
@@ -387,7 +408,8 @@ Or run the helper:
 
 Expected topic families:
 
-- RealSense: `/camera/camera/color/image_raw`, `/camera/camera/depth/image_rect_raw`, `/camera/camera/aligned_depth_to_color/image_raw`
+- RealSense 001: `/camera/realsense_001/color/image_raw`, `/camera/realsense_001/depth/image_rect_raw`, `/camera/realsense_001/aligned_depth_to_color/image_raw`
+- RealSense 002: `/camera/realsense_002/color/image_raw`, `/camera/realsense_002/depth/image_rect_raw`, `/camera/realsense_002/aligned_depth_to_color/image_raw`
 - Arducam V4L2: `/arducam/image_raw`, `/arducam/camera_info`
 - RPLIDAR: `/scan`
 - Hesai: `/lidar_points`, `/lidar_imu`, `/lidar_packets_loss`

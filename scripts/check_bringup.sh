@@ -10,7 +10,7 @@ echo "Topics:"
 ros2 topic list || true
 echo
 echo "Key topic rates:"
-for topic in /scan /lidar_points /camera/camera/color/image_raw /arducam/image_raw; do
+for topic in /scan /lidar_points /camera/realsense_001/color/image_raw /camera/realsense_002/color/image_raw /arducam/image_raw; do
   if ros2 topic list | grep -qx "$topic"; then
     echo "$topic"
     timeout 6 ros2 topic hz "$topic" || true

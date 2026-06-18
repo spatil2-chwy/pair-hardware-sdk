@@ -42,9 +42,19 @@ DEFAULT_MANIFEST = {
             "resource_id": "realsense_001",
             "capabilities": ["camera.rgb", "camera.rgbd", "camera.intrinsics"],
             "topics": {
-                "rgb": "/camera/camera/color/image_raw",
-                "depth": "/camera/camera/aligned_depth_to_color/image_raw",
-                "camera_info": "/camera/camera/color/camera_info",
+                "rgb": "/camera/realsense_001/color/image_raw",
+                "depth": "/camera/realsense_001/aligned_depth_to_color/image_raw",
+                "camera_info": "/camera/realsense_001/color/camera_info",
+            },
+            "depth_scale": 0.001,
+        },
+        {
+            "resource_id": "realsense_002",
+            "capabilities": ["camera.rgb", "camera.rgbd", "camera.intrinsics"],
+            "topics": {
+                "rgb": "/camera/realsense_002/color/image_raw",
+                "depth": "/camera/realsense_002/aligned_depth_to_color/image_raw",
+                "camera_info": "/camera/realsense_002/color/camera_info",
             },
             "depth_scale": 0.001,
         },

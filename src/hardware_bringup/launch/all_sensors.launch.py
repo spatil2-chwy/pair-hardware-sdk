@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -15,12 +15,26 @@ def local_launch(filename):
 def generate_launch_description():
     args = [
         DeclareLaunchArgument("use_realsense", default_value="true"),
+        DeclareLaunchArgument("use_realsense_001", default_value="true"),
+        DeclareLaunchArgument("use_realsense_002", default_value="false"),
         DeclareLaunchArgument("use_arducam", default_value="true"),
         DeclareLaunchArgument("use_rplidar", default_value="true"),
         DeclareLaunchArgument("use_hesai", default_value="true"),
         DeclareLaunchArgument("use_argos_provider", default_value="false"),
         DeclareLaunchArgument("realsense_camera_namespace", default_value="camera"),
-        DeclareLaunchArgument("realsense_camera_name", default_value="camera"),
+        DeclareLaunchArgument("realsense_camera_name", default_value="realsense_001"),
+        DeclareLaunchArgument(
+            "realsense_001_camera_namespace",
+            default_value=LaunchConfiguration("realsense_camera_namespace"),
+        ),
+        DeclareLaunchArgument(
+            "realsense_001_camera_name",
+            default_value=LaunchConfiguration("realsense_camera_name"),
+        ),
+        DeclareLaunchArgument("realsense_001_serial_no", default_value="''"),
+        DeclareLaunchArgument("realsense_002_camera_namespace", default_value="camera"),
+        DeclareLaunchArgument("realsense_002_camera_name", default_value="realsense_002"),
+        DeclareLaunchArgument("realsense_002_serial_no", default_value="''"),
         DeclareLaunchArgument("realsense_color_profile", default_value="640,480,15"),
         DeclareLaunchArgument("realsense_depth_profile", default_value="640,480,15"),
         DeclareLaunchArgument("arducam_video_device", default_value="/dev/video0"),
@@ -49,12 +63,45 @@ def generate_launch_description():
         ),
     ]
 
-    realsense = IncludeLaunchDescription(
+    realsense_001 = IncludeLaunchDescription(
         local_launch("realsense.launch.py"),
-        condition=IfCondition(LaunchConfiguration("use_realsense")),
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "'",
+                    LaunchConfiguration("use_realsense"),
+                    "'.lower() == 'true' and '",
+                    LaunchConfiguration("use_realsense_001"),
+                    "'.lower() == 'true'",
+                ]
+            )
+        ),
         launch_arguments={
-            "camera_namespace": LaunchConfiguration("realsense_camera_namespace"),
-            "camera_name": LaunchConfiguration("realsense_camera_name"),
+            "camera_namespace": LaunchConfiguration("realsense_001_camera_namespace"),
+            "camera_name": LaunchConfiguration("realsense_001_camera_name"),
+            "serial_no": LaunchConfiguration("realsense_001_serial_no"),
+            "color_profile": LaunchConfiguration("realsense_color_profile"),
+            "depth_profile": LaunchConfiguration("realsense_depth_profile"),
+        }.items(),
+    )
+
+    realsense_002 = IncludeLaunchDescription(
+        local_launch("realsense.launch.py"),
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "'",
+                    LaunchConfiguration("use_realsense"),
+                    "'.lower() == 'true' and '",
+                    LaunchConfiguration("use_realsense_002"),
+                    "'.lower() == 'true'",
+                ]
+            )
+        ),
+        launch_arguments={
+            "camera_namespace": LaunchConfiguration("realsense_002_camera_namespace"),
+            "camera_name": LaunchConfiguration("realsense_002_camera_name"),
+            "serial_no": LaunchConfiguration("realsense_002_serial_no"),
             "color_profile": LaunchConfiguration("realsense_color_profile"),
             "depth_profile": LaunchConfiguration("realsense_depth_profile"),
         }.items(),
@@ -104,5 +151,5 @@ def generate_launch_description():
     )
 
     return LaunchDescription(
-        args + [realsense, arducam, rplidar, hesai, argos_provider]
+        args + [realsense_001, realsense_002, arducam, rplidar, hesai, argos_provider]
     )

@@ -9,6 +9,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("camera_namespace", default_value="camera"),
             DeclareLaunchArgument("camera_name", default_value="camera"),
+            DeclareLaunchArgument("serial_no", default_value="''"),
             DeclareLaunchArgument("enable_depth", default_value="true"),
             DeclareLaunchArgument("enable_color", default_value="true"),
             DeclareLaunchArgument("enable_infra", default_value="false"),
@@ -37,6 +38,7 @@ def generate_launch_description():
                     {
                         "camera_namespace": LaunchConfiguration("camera_namespace"),
                         "camera_name": LaunchConfiguration("camera_name"),
+                        "serial_no": LaunchConfiguration("serial_no"),
                         "enable_depth": LaunchConfiguration("enable_depth"),
                         "enable_color": LaunchConfiguration("enable_color"),
                         "enable_infra": LaunchConfiguration("enable_infra"),
