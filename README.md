@@ -362,8 +362,8 @@ ros2 launch hardware_bringup all_sensors.launch.py \
   use_argos_provider:=true \
   use_realsense_001:=true \
   use_realsense_002:=true \
-  realsense_001_serial_no:=123456789012 \
-  realsense_002_serial_no:=987654321098
+  realsense_001_serial_no:="'123456789012'" \
+  realsense_002_serial_no:="'987654321098'"
 ```
 
 The default ROS graph names RealSense cameras as `/camera/<resource_id>/...`,
