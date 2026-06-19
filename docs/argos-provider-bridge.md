@@ -70,9 +70,16 @@ argos/providers/puffle-go2/heartbeat
 `realsense_001`
 
 - Capabilities: `camera.rgb`, `camera.rgbd`, `camera.intrinsics`
-- Default color topic: `/camera/camera/color/image_raw`
-- Default aligned depth topic: `/camera/camera/aligned_depth_to_color/image_raw`
-- Default color CameraInfo topic: `/camera/camera/color/camera_info`
+- Default color topic: `/camera/realsense_001/color/image_raw`
+- Default aligned depth topic: `/camera/realsense_001/aligned_depth_to_color/image_raw`
+- Default color CameraInfo topic: `/camera/realsense_001/color/camera_info`
+
+`realsense_002`
+
+- Capabilities: `camera.rgb`, `camera.rgbd`, `camera.intrinsics`
+- Default color topic: `/camera/realsense_002/color/image_raw`
+- Default aligned depth topic: `/camera/realsense_002/aligned_depth_to_color/image_raw`
+- Default color CameraInfo topic: `/camera/realsense_002/color/camera_info`
 
 The bridge expects RealSense depth to be aligned to color. If your driver only
 publishes unaligned depth, enable `align_depth.enable:=true` in the RealSense
@@ -150,9 +157,20 @@ resources:
       - camera.rgbd
       - camera.intrinsics
     topics:
-      rgb: /camera/camera/color/image_raw
-      depth: /camera/camera/aligned_depth_to_color/image_raw
-      camera_info: /camera/camera/color/camera_info
+      rgb: /camera/realsense_001/color/image_raw
+      depth: /camera/realsense_001/aligned_depth_to_color/image_raw
+      camera_info: /camera/realsense_001/color/camera_info
+    depth_scale: 0.001
+
+  - resource_id: realsense_002
+    capabilities:
+      - camera.rgb
+      - camera.rgbd
+      - camera.intrinsics
+    topics:
+      rgb: /camera/realsense_002/color/image_raw
+      depth: /camera/realsense_002/aligned_depth_to_color/image_raw
+      camera_info: /camera/realsense_002/color/camera_info
     depth_scale: 0.001
 ```
 

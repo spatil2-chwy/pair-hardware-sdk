@@ -36,7 +36,8 @@ The default `puffle_go2.yaml` resources are:
 | Resource | Capabilities | Default ROS 2 sources |
 | --- | --- | --- |
 | `arducam_001` | `camera.rgb`, `camera.intrinsics` | `/arducam/image_raw`, `/arducam/camera_info` |
-| `realsense_001` | `camera.rgb`, `camera.rgbd`, `camera.intrinsics` | `/camera/camera/color/image_raw`, `/camera/camera/aligned_depth_to_color/image_raw`, `/camera/camera/color/camera_info` |
+| `realsense_001` | `camera.rgb`, `camera.rgbd`, `camera.intrinsics` | `/camera/realsense_001/color/image_raw`, `/camera/realsense_001/aligned_depth_to_color/image_raw`, `/camera/realsense_001/color/camera_info` |
+| `realsense_002` | `camera.rgb`, `camera.rgbd`, `camera.intrinsics` | `/camera/realsense_002/color/image_raw`, `/camera/realsense_002/aligned_depth_to_color/image_raw`, `/camera/realsense_002/color/camera_info` |
 
 The RealSense depth topic defaults to aligned depth-to-color so returned depth
 pixels share the color image coordinate space.
@@ -126,9 +127,20 @@ resources:
       - camera.rgbd
       - camera.intrinsics
     topics:
-      rgb: /camera/camera/color/image_raw
-      depth: /camera/camera/aligned_depth_to_color/image_raw
-      camera_info: /camera/camera/color/camera_info
+      rgb: /camera/realsense_001/color/image_raw
+      depth: /camera/realsense_001/aligned_depth_to_color/image_raw
+      camera_info: /camera/realsense_001/color/camera_info
+    depth_scale: 0.001
+
+  - resource_id: realsense_002
+    capabilities:
+      - camera.rgb
+      - camera.rgbd
+      - camera.intrinsics
+    topics:
+      rgb: /camera/realsense_002/color/image_raw
+      depth: /camera/realsense_002/aligned_depth_to_color/image_raw
+      camera_info: /camera/realsense_002/color/camera_info
     depth_scale: 0.001
 ```
 
