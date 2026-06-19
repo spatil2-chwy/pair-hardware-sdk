@@ -357,6 +357,15 @@ ros2 launch hardware_bringup all_sensors.launch.py \
 Use the camera's RealSense serial number to bind a logical resource to a
 specific physical USB camera:
 
+If you need to find the serial number from the Humble Docker image, build the
+image once and run the RealSense enumeration tool:
+
+```bash
+cd ~/hardware-sdk
+sudo ./docker/build_humble_image.sh
+sudo ./docker/run_humble.sh rs-enumerate-devices
+```
+
 ```bash
 ros2 launch hardware_bringup all_sensors.launch.py \
   use_argos_provider:=true \
