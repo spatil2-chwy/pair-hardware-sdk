@@ -101,8 +101,8 @@ class CharucoFisheyeCalibrator:
                 continue
 
             ids = charuco_ids.flatten().astype(np.int32)
-            obj = self.chessboard_corners[ids].reshape(-1, 1, 3).astype(np.float64)
-            img = charuco_corners.reshape(-1, 1, 2).astype(np.float64)
+            obj = self.chessboard_corners[ids].reshape(1, -1, 3).astype(np.float64)
+            img = charuco_corners.reshape(1, -1, 2).astype(np.float64)
             object_points.append(obj)
             image_points.append(img)
             corner_counts.append(len(ids))
