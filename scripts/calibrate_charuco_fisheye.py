@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import math
 import sys
 from pathlib import Path
@@ -45,19 +44,11 @@ class CharucoFisheyeCalibrator:
             args.square_length,
             args.marker_length,
             self.dictionary,
-            args.legacy_pattern,
         )
         self.detector_params = self._detector_params()
         self.chessboard_corners = self._board_chessboard_corners(self.board)
 
     def detect(self, image_bgr: np.ndarray) -> tuple[Optional[np.ndarray], Optional[np.ndarray], np.ndarray]:
-        charuco_corners, charuco_ids, overlay, _ = self.detect_with_markers(image_bgr)
-        return charuco_corners, charuco_ids, overlay
-
-    def detect_with_markers(
-        self,
-        image_bgr: np.ndarray,
-    ) -> tuple[Optional[np.ndarray], Optional[np.ndarray], np.ndarray, Optional[np.ndarray]]:
         gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
         corners, ids, rejected = cv2.aruco.detectMarkers(
             gray,
@@ -66,7 +57,7 @@ class CharucoFisheyeCalibrator:
         )
         overlay = image_bgr.copy()
         if ids is None or len(ids) == 0:
-            return None, None, overlay, None
+            return None, None, overlay
 
         cv2.aruco.drawDetectedMarkers(overlay, corners, ids)
         try:
@@ -81,17 +72,15 @@ class CharucoFisheyeCalibrator:
             self.board,
         )
         if count is None or count < self.args.min_corners or charuco_ids is None:
-            return None, None, overlay, ids
+            return None, None, overlay
 
         cv2.aruco.drawDetectedCornersCharuco(overlay, charuco_corners, charuco_ids)
-        return charuco_corners, charuco_ids, overlay, ids
+        return charuco_corners, charuco_ids, overlay
 
     def calibrate_from_paths(self, image_paths: Iterable[Path]) -> tuple[float, np.ndarray, np.ndarray]:
         object_points = []
         image_points = []
         corner_counts = []
-        charuco_id_sets = []
-        marker_id_sets = []
         all_image_points = []
         image_size = None
 
@@ -106,7 +95,7 @@ class CharucoFisheyeCalibrator:
             elif image_size != (w, h):
                 raise ValueError(f"{path} has size {(w, h)}, expected {image_size}")
 
-            charuco_corners, charuco_ids, _, marker_ids = self.detect_with_markers(image)
+            charuco_corners, charuco_ids, _ = self.detect(image)
             if charuco_corners is None or charuco_ids is None:
                 print(f"Skipping image with too few ChArUco corners: {path}", file=sys.stderr)
                 continue
@@ -115,9 +104,6 @@ class CharucoFisheyeCalibrator:
             object_points.append(obj)
             image_points.append(img)
             corner_counts.append(obj.reshape(-1, 3).shape[0])
-            charuco_id_sets.append(charuco_ids.flatten().astype(np.int32))
-            if marker_ids is not None:
-                marker_id_sets.append(marker_ids.flatten().astype(np.int32))
             all_image_points.append(img.reshape(-1, 2))
 
         if image_size is None:
@@ -127,13 +113,7 @@ class CharucoFisheyeCalibrator:
                 f"Need at least {self.args.min_images} usable images, found {len(object_points)}"
             )
 
-        self._print_dataset_summary(
-            corner_counts,
-            charuco_id_sets,
-            marker_id_sets,
-            all_image_points,
-            image_size,
-        )
+        self._print_dataset_summary(corner_counts, all_image_points, image_size)
         return self._calibrate(object_points, image_points, image_size)
 
     def _calibrate(
@@ -268,8 +248,6 @@ class CharucoFisheyeCalibrator:
     @staticmethod
     def _print_dataset_summary(
         corner_counts: list[int],
-        charuco_id_sets: list[np.ndarray],
-        marker_id_sets: list[np.ndarray],
         image_points: list[np.ndarray],
         image_size: tuple[int, int],
     ) -> None:
@@ -289,20 +267,6 @@ class CharucoFisheyeCalibrator:
             f"x={coverage[0] * 100.0:.1f}% y={coverage[1] * 100.0:.1f}% "
             f"bbox=({mins[0]:.1f},{mins[1]:.1f})-({maxs[0]:.1f},{maxs[1]:.1f})"
         )
-        CharucoFisheyeCalibrator._print_id_summary("ChArUco IDs", charuco_id_sets)
-        CharucoFisheyeCalibrator._print_id_summary("ArUco marker IDs", marker_id_sets)
-
-    @staticmethod
-    def _print_id_summary(label: str, id_sets: list[np.ndarray]) -> None:
-        if not id_sets:
-            return
-        ids = np.unique(np.concatenate(id_sets))
-        preview = ", ".join(str(int(value)) for value in ids[:12])
-        suffix = "" if len(ids) <= 12 else ", ..."
-        print(
-            f"{label}: unique={len(ids)} min={int(ids.min())} max={int(ids.max())} "
-            f"first=[{preview}{suffix}]"
-        )
 
     @staticmethod
     def _dictionary(name: str):
@@ -321,15 +285,10 @@ class CharucoFisheyeCalibrator:
         square: float,
         marker: float,
         dictionary,
-        legacy_pattern: bool,
     ):
         if hasattr(cv2.aruco, "CharucoBoard_create"):
-            board = cv2.aruco.CharucoBoard_create(squares_x, squares_y, square, marker, dictionary)
-        else:
-            board = cv2.aruco.CharucoBoard((squares_x, squares_y), square, marker, dictionary)
-        if legacy_pattern and hasattr(board, "setLegacyPattern"):
-            board.setLegacyPattern(True)
-        return board
+            return cv2.aruco.CharucoBoard_create(squares_x, squares_y, square, marker, dictionary)
+        return cv2.aruco.CharucoBoard((squares_x, squares_y), square, marker, dictionary)
 
     @staticmethod
     def _detector_params():
@@ -531,23 +490,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--capture-dir", default="calibration/arducam_b0202_1280x720/images")
     parser.add_argument("--output", default="src/hardware_bringup/config/arducam_b0202_1280x720.yaml")
     parser.add_argument("--camera-name", default="arducam_b0202_imx291")
-    parser.add_argument("--squares-x", type=int, default=9, help="ChArUco squares across")
-    parser.add_argument("--squares-y", type=int, default=12, help="ChArUco squares down")
+    parser.add_argument("--squares-x", type=int, default=12, help="ChArUco squares in the board X direction")
+    parser.add_argument("--squares-y", type=int, default=9, help="ChArUco squares in the board Y direction")
     parser.add_argument("--square-length", type=float, default=0.030, help="Square size in meters")
     parser.add_argument("--marker-length", type=float, default=0.022, help="Marker size in meters")
     parser.add_argument("--aruco-dict", default="5x5_100", help="Example: 5x5_50, 5x5_100, 5x5_250")
-    parser.add_argument(
-        "--legacy-pattern",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Use the pre-OpenCV-4.6 ChArUco board marker/color pattern",
-    )
-    parser.add_argument(
-        "--try-board-variants",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="If the requested board calibrates badly, retry legacy and swapped-dimension board definitions",
-    )
     parser.add_argument("--min-corners", type=int, default=18)
     parser.add_argument("--min-images", type=int, default=25)
     parser.add_argument("--diagonal-fov-deg", type=float, default=160.0)
@@ -574,7 +521,7 @@ def main() -> int:
     else:
         image_paths = capture_from_ros(args, calibrator)
 
-    rms, k, d, calibrated_args, board_variant = calibrate_with_board_variants(args, image_paths)
+    rms, k, d = calibrator.calibrate_from_paths(image_paths)
     validate_calibration_result(args, rms, k, d)
     first_image = cv2.imread(str(image_paths[0]), cv2.IMREAD_COLOR)
     if first_image is None:
@@ -584,86 +531,8 @@ def main() -> int:
     write_ros_yaml(output, args.camera_name, (width, height), k, d)
     print(f"Wrote {output}")
     print(f"camera_info_url: file://{output.resolve()}")
-    print(f"Board variant: {board_variant}")
-    if (
-        calibrated_args.squares_x != args.squares_x
-        or calibrated_args.squares_y != args.squares_y
-        or calibrated_args.legacy_pattern != args.legacy_pattern
-    ):
-        print(
-            "Calibration used "
-            f"--squares-x {calibrated_args.squares_x} "
-            f"--squares-y {calibrated_args.squares_y} "
-            f"{'--legacy-pattern' if calibrated_args.legacy_pattern else '--no-legacy-pattern'}"
-        )
     print(f"RMS reprojection error: {rms:.6f}")
     return 0
-
-
-def calibrate_with_board_variants(
-    args: argparse.Namespace,
-    image_paths: list[Path],
-) -> tuple[float, np.ndarray, np.ndarray, argparse.Namespace, str]:
-    results = []
-    for label, variant_args in board_variant_args(args):
-        if label != "requested" and not args.try_board_variants:
-            continue
-
-        print(
-            f"Board variant {label}: "
-            f"squares={variant_args.squares_x}x{variant_args.squares_y} "
-            f"legacy_pattern={variant_args.legacy_pattern}"
-        )
-        try:
-            calibrator = CharucoFisheyeCalibrator(variant_args)
-            rms, k, d = calibrator.calibrate_from_paths(image_paths)
-        except (ValueError, cv2.error) as exc:
-            print(f"Board variant {label}: failed: {exc}", file=sys.stderr)
-            continue
-
-        problems = calibration_problems(args, rms, k, d)
-        if not problems:
-            return rms, k, d, variant_args, label
-        results.append((len(problems), rms, label, variant_args, k, d, problems))
-
-        if label == "requested" and not args.try_board_variants:
-            break
-        if label == "requested":
-            print("Requested board variant looks bad; trying alternate board definitions.")
-            for problem in problems:
-                print(f"  - {problem}")
-
-    if not results:
-        raise ValueError("All board variants failed before producing a calibration")
-
-    results.sort(key=lambda item: (item[0], item[1]))
-    _, rms, label, variant_args, k, d, problems = results[0]
-    print(f"Selected bad board variant: {label}")
-    for problem in problems:
-        print(f"  - {problem}")
-    return rms, k, d, variant_args, label
-
-
-def board_variant_args(args: argparse.Namespace) -> list[tuple[str, argparse.Namespace]]:
-    variants = []
-    seen = set()
-
-    def add(label: str, squares_x: int, squares_y: int, legacy_pattern: bool) -> None:
-        key = (squares_x, squares_y, legacy_pattern)
-        if key in seen:
-            return
-        seen.add(key)
-        variant = copy.copy(args)
-        variant.squares_x = squares_x
-        variant.squares_y = squares_y
-        variant.legacy_pattern = legacy_pattern
-        variants.append((label, variant))
-
-    add("requested", args.squares_x, args.squares_y, args.legacy_pattern)
-    add("legacy_pattern", args.squares_x, args.squares_y, not args.legacy_pattern)
-    add("swapped_dimensions", args.squares_y, args.squares_x, args.legacy_pattern)
-    add("swapped_dimensions_legacy_pattern", args.squares_y, args.squares_x, not args.legacy_pattern)
-    return variants
 
 
 def validate_calibration_result(
@@ -679,8 +548,7 @@ def validate_calibration_result(
             "Refusing to write camera_info_url YAML because calibration looks bad:\n"
             f"  - {detail}\n"
             "Try rerunning from saved images with --no-fix-principal-point, "
-            "--no-use-intrinsic-guess, --legacy-pattern, swapped --squares-x/--squares-y, "
-            "or fewer/better-distributed samples. "
+            "--no-use-intrinsic-guess, or fewer/better-distributed samples. "
             "Pass --allow-bad-result only if you intentionally want this YAML."
         )
 
