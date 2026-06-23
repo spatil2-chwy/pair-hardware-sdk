@@ -80,6 +80,8 @@ class CharucoFisheyeCalibrator:
     def calibrate_from_paths(self, image_paths: Iterable[Path]) -> tuple[float, np.ndarray, np.ndarray]:
         object_points = []
         image_points = []
+        corner_counts = []
+        all_image_points = []
         image_size = None
 
         for path in image_paths:
@@ -103,6 +105,8 @@ class CharucoFisheyeCalibrator:
             img = charuco_corners.reshape(-1, 1, 2).astype(np.float64)
             object_points.append(obj)
             image_points.append(img)
+            corner_counts.append(len(ids))
+            all_image_points.append(img.reshape(-1, 2))
 
         if image_size is None:
             raise ValueError("No readable calibration images found")
@@ -111,6 +115,7 @@ class CharucoFisheyeCalibrator:
                 f"Need at least {self.args.min_images} usable images, found {len(object_points)}"
             )
 
+        self._print_dataset_summary(corner_counts, all_image_points, image_size)
         return self._calibrate(object_points, image_points, image_size)
 
     def _calibrate(
@@ -134,7 +139,9 @@ class CharucoFisheyeCalibrator:
         rvecs = [np.zeros((1, 1, 3), dtype=np.float64) for _ in object_points]
         tvecs = [np.zeros((1, 1, 3), dtype=np.float64) for _ in object_points]
 
-        flags = cv2.fisheye.CALIB_USE_INTRINSIC_GUESS
+        flags = 0
+        if self.args.use_intrinsic_guess:
+            flags |= cv2.fisheye.CALIB_USE_INTRINSIC_GUESS
         if self.args.fix_skew:
             flags |= cv2.fisheye.CALIB_FIX_SKEW
         if self.args.fix_principal_point:
@@ -166,6 +173,29 @@ class CharucoFisheyeCalibrator:
         print("D:")
         print(d.reshape(-1))
         return rms, k, d
+
+    @staticmethod
+    def _print_dataset_summary(
+        corner_counts: list[int],
+        image_points: list[np.ndarray],
+        image_size: tuple[int, int],
+    ) -> None:
+        counts = np.asarray(corner_counts, dtype=np.int32)
+        points = np.concatenate(image_points, axis=0)
+        mins = points.min(axis=0)
+        maxs = points.max(axis=0)
+        w, h = image_size
+        coverage = (maxs - mins) / np.asarray([w, h], dtype=np.float64)
+        print(f"Usable images: {len(corner_counts)}")
+        print(
+            "ChArUco corners/image: "
+            f"min={counts.min()}, median={np.median(counts):.1f}, max={counts.max()}"
+        )
+        print(
+            "Detected-corner coverage: "
+            f"x={coverage[0] * 100.0:.1f}% y={coverage[1] * 100.0:.1f}% "
+            f"bbox=({mins[0]:.1f},{mins[1]:.1f})-({maxs[0]:.1f},{maxs[1]:.1f})"
+        )
 
     @staticmethod
     def _dictionary(name: str):
@@ -373,12 +403,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-corners", type=int, default=18)
     parser.add_argument("--min-images", type=int, default=25)
     parser.add_argument("--diagonal-fov-deg", type=float, default=160.0)
+    parser.add_argument("--max-rms", type=float, default=5.0)
     parser.add_argument("--max-iterations", type=int, default=200)
     parser.add_argument("--epsilon", type=float, default=1e-7)
+    parser.add_argument("--use-intrinsic-guess", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--fix-skew", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--fix-principal-point", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--fix-principal-point", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--recompute-extrinsics", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--check-conditions", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--allow-bad-result", action="store_true")
     return parser.parse_args()
 
 
@@ -394,6 +427,7 @@ def main() -> int:
         image_paths = capture_from_ros(args, calibrator)
 
     rms, k, d = calibrator.calibrate_from_paths(image_paths)
+    validate_calibration_result(args, rms, k, d)
     first_image = cv2.imread(str(image_paths[0]), cv2.IMREAD_COLOR)
     if first_image is None:
         raise ValueError(f"Could not read first calibration image {image_paths[0]}")
@@ -404,6 +438,37 @@ def main() -> int:
     print(f"camera_info_url: file://{output.resolve()}")
     print(f"RMS reprojection error: {rms:.6f}")
     return 0
+
+
+def validate_calibration_result(
+    args: argparse.Namespace,
+    rms: float,
+    k: np.ndarray,
+    d: np.ndarray,
+) -> None:
+    problems = []
+    if not np.isfinite(rms) or rms > args.max_rms:
+        problems.append(f"RMS reprojection error {rms:.3f} is above --max-rms {args.max_rms:.3f}")
+    if np.allclose(d, 0.0, atol=1e-12):
+        problems.append("fisheye distortion coefficients are all zero")
+    if not np.all(np.isfinite(k)) or not np.all(np.isfinite(d)):
+        problems.append("calibration returned non-finite K or D values")
+    fx = float(k[0, 0])
+    fy = float(k[1, 1])
+    if fx <= 0.0 or fy <= 0.0:
+        problems.append(f"focal lengths must be positive, got fx={fx:.3f}, fy={fy:.3f}")
+    elif max(fx, fy) / min(fx, fy) > 1.5:
+        problems.append(f"fx/fy ratio looks suspicious: fx={fx:.3f}, fy={fy:.3f}")
+
+    if problems and not args.allow_bad_result:
+        detail = "\n  - ".join(problems)
+        raise ValueError(
+            "Refusing to write camera_info_url YAML because calibration looks bad:\n"
+            f"  - {detail}\n"
+            "Try rerunning from saved images with --no-fix-principal-point, "
+            "--no-use-intrinsic-guess, or fewer/better-distributed samples. "
+            "Pass --allow-bad-result only if you intentionally want this YAML."
+        )
 
 
 if __name__ == "__main__":
