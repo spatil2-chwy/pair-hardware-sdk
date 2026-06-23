@@ -35,10 +35,13 @@ def generate_launch_description():
         DeclareLaunchArgument("realsense_002_camera_namespace", default_value="camera"),
         DeclareLaunchArgument("realsense_002_camera_name", default_value="realsense_002"),
         DeclareLaunchArgument("realsense_002_serial_no", default_value="''"),
-        DeclareLaunchArgument("realsense_color_profile", default_value="640,480,15"),
-        DeclareLaunchArgument("realsense_depth_profile", default_value="640,480,15"),
+        DeclareLaunchArgument("realsense_color_profile", default_value="1280,720,15"),
+        DeclareLaunchArgument("realsense_depth_profile", default_value="1280,720,15"),
         DeclareLaunchArgument("arducam_video_device", default_value="/dev/video0"),
         DeclareLaunchArgument("arducam_namespace", default_value="arducam"),
+        DeclareLaunchArgument("arducam_image_width", default_value="1280"),
+        DeclareLaunchArgument("arducam_image_height", default_value="720"),
+        DeclareLaunchArgument("arducam_fps", default_value="15"),
         DeclareLaunchArgument(
             "argos_manifest_path",
             default_value=PathJoinSubstitution(
@@ -113,6 +116,9 @@ def generate_launch_description():
         launch_arguments={
             "arducam_namespace": LaunchConfiguration("arducam_namespace"),
             "video_device": LaunchConfiguration("arducam_video_device"),
+            "image_width": LaunchConfiguration("arducam_image_width"),
+            "image_height": LaunchConfiguration("arducam_image_height"),
+            "fps": LaunchConfiguration("arducam_fps"),
         }.items(),
     )
 

@@ -38,9 +38,9 @@ def generate_launch_description():
             DeclareLaunchArgument("frame_id", default_value="arducam_color_optical_frame"),
             DeclareLaunchArgument("pixel_format", default_value="YUYV"),
             DeclareLaunchArgument("output_encoding", default_value="rgb8"),
-            DeclareLaunchArgument("image_width", default_value="640"),
-            DeclareLaunchArgument("image_height", default_value="480"),
-            DeclareLaunchArgument("fps", default_value="30"),
+            DeclareLaunchArgument("image_width", default_value="1280"),
+            DeclareLaunchArgument("image_height", default_value="720"),
+            DeclareLaunchArgument("fps", default_value="15"),
             OpaqueFunction(function=start_camera),
         ]
     )
