@@ -139,18 +139,50 @@ class CharucoFisheyeCalibrator:
         rvecs = [np.zeros((1, 1, 3), dtype=np.float64) for _ in object_points]
         tvecs = [np.zeros((1, 1, 3), dtype=np.float64) for _ in object_points]
 
-        flags = 0
-        if self.args.use_intrinsic_guess:
-            flags |= cv2.fisheye.CALIB_USE_INTRINSIC_GUESS
-        if self.args.fix_skew:
-            flags |= cv2.fisheye.CALIB_FIX_SKEW
-        if self.args.fix_principal_point:
-            flags |= cv2.fisheye.CALIB_FIX_PRINCIPAL_POINT
-        if self.args.recompute_extrinsics:
-            flags |= cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC
-        if self.args.check_conditions:
-            flags |= cv2.fisheye.CALIB_CHECK_COND
+        attempts = self._calibration_attempts()
+        results = []
+        for label, flags in attempts:
+            try:
+                rms, solved_k, solved_d = self._calibrate_once(
+                    object_points,
+                    image_points,
+                    image_size,
+                    k.copy(),
+                    d.copy(),
+                    flags,
+                )
+                degenerate = np.allclose(solved_d, 0.0, atol=1e-12)
+                results.append((rms, degenerate, label, solved_k, solved_d))
+                status = "degenerate" if degenerate else "ok"
+                print(f"Attempt {label}: RMS={rms:.6f} {status}")
+            except cv2.error as exc:
+                print(f"Attempt {label}: failed: {exc}", file=sys.stderr)
 
+        if not results:
+            raise ValueError("All fisheye calibration attempts failed")
+
+        results.sort(key=lambda item: (item[1], item[0]))
+        rms, _, label, k, d = results[0]
+        print(f"Selected attempt: {label}")
+        print(f"Used {len(object_points)} images at {w}x{h}")
+        print(f"RMS reprojection error: {rms:.6f}")
+        print("K:")
+        print(k)
+        print("D:")
+        print(d.reshape(-1))
+        return rms, k, d
+
+    def _calibrate_once(
+        self,
+        object_points: list[np.ndarray],
+        image_points: list[np.ndarray],
+        image_size: tuple[int, int],
+        k: np.ndarray,
+        d: np.ndarray,
+        flags: int,
+    ) -> tuple[float, np.ndarray, np.ndarray]:
+        rvecs = [np.zeros((1, 1, 3), dtype=np.float64) for _ in object_points]
+        tvecs = [np.zeros((1, 1, 3), dtype=np.float64) for _ in object_points]
         rms, k, d, _, _ = cv2.fisheye.calibrate(
             object_points,
             image_points,
@@ -166,13 +198,54 @@ class CharucoFisheyeCalibrator:
                 self.args.epsilon,
             ),
         )
-        print(f"Used {len(object_points)} images at {w}x{h}")
-        print(f"RMS reprojection error: {rms:.6f}")
-        print("K:")
-        print(k)
-        print("D:")
-        print(d.reshape(-1))
         return rms, k, d
+
+    def _calibration_attempts(self) -> list[tuple[str, int]]:
+        requested = (
+            self.args.use_intrinsic_guess,
+            self.args.fix_skew,
+            self.args.fix_principal_point,
+            self.args.recompute_extrinsics,
+            self.args.check_conditions,
+        )
+        variants = [
+            ("requested", requested),
+            ("no_intrinsic_guess", (False, self.args.fix_skew, self.args.fix_principal_point, self.args.recompute_extrinsics, self.args.check_conditions)),
+            ("no_recompute_extrinsics", (self.args.use_intrinsic_guess, self.args.fix_skew, self.args.fix_principal_point, False, self.args.check_conditions)),
+            ("free_skew", (self.args.use_intrinsic_guess, False, self.args.fix_principal_point, self.args.recompute_extrinsics, self.args.check_conditions)),
+            ("fixed_principal_point", (self.args.use_intrinsic_guess, self.args.fix_skew, True, self.args.recompute_extrinsics, self.args.check_conditions)),
+            ("minimal_flags", (False, False, False, False, False)),
+        ]
+
+        attempts = []
+        seen = set()
+        for label, options in variants:
+            if options in seen:
+                continue
+            seen.add(options)
+            attempts.append((label, self._fisheye_flags(*options)))
+        return attempts
+
+    @staticmethod
+    def _fisheye_flags(
+        use_intrinsic_guess: bool,
+        fix_skew: bool,
+        fix_principal_point: bool,
+        recompute_extrinsics: bool,
+        check_conditions: bool,
+    ) -> int:
+        flags = 0
+        if use_intrinsic_guess:
+            flags |= cv2.fisheye.CALIB_USE_INTRINSIC_GUESS
+        if fix_skew:
+            flags |= cv2.fisheye.CALIB_FIX_SKEW
+        if fix_principal_point:
+            flags |= cv2.fisheye.CALIB_FIX_PRINCIPAL_POINT
+        if recompute_extrinsics:
+            flags |= cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC
+        if check_conditions:
+            flags |= cv2.fisheye.CALIB_CHECK_COND
+        return flags
 
     @staticmethod
     def _print_dataset_summary(
