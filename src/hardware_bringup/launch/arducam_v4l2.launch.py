@@ -24,6 +24,7 @@ def start_camera(context):
                     "output_encoding": LaunchConfiguration("output_encoding").perform(context),
                     "image_size": [width, height],
                     "time_per_frame": [1, fps],
+                    "camera_info_url": LaunchConfiguration("camera_info_url").perform(context),
                 }
             ],
         )
@@ -41,6 +42,7 @@ def generate_launch_description():
             DeclareLaunchArgument("image_width", default_value="1280"),
             DeclareLaunchArgument("image_height", default_value="720"),
             DeclareLaunchArgument("fps", default_value="15"),
+            DeclareLaunchArgument("camera_info_url", default_value=""),
             OpaqueFunction(function=start_camera),
         ]
     )

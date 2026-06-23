@@ -42,6 +42,7 @@ def generate_launch_description():
         DeclareLaunchArgument("arducam_image_width", default_value="1280"),
         DeclareLaunchArgument("arducam_image_height", default_value="720"),
         DeclareLaunchArgument("arducam_fps", default_value="15"),
+        DeclareLaunchArgument("arducam_camera_info_url", default_value=""),
         DeclareLaunchArgument(
             "argos_manifest_path",
             default_value=PathJoinSubstitution(
@@ -119,6 +120,7 @@ def generate_launch_description():
             "image_width": LaunchConfiguration("arducam_image_width"),
             "image_height": LaunchConfiguration("arducam_image_height"),
             "fps": LaunchConfiguration("arducam_fps"),
+            "camera_info_url": LaunchConfiguration("arducam_camera_info_url"),
         }.items(),
     )
 
