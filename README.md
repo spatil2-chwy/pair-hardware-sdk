@@ -161,8 +161,8 @@ ros2 launch realsense2_camera rs_launch.py \
   enable_depth:=true \
   enable_color:=true \
   align_depth.enable:=true \
-  rgb_camera.color_profile:=1280,720,15 \
-  depth_module.depth_profile:=1280,720,15
+  rgb_camera.color_profile:=1280x720x15 \
+  depth_module.depth_profile:=1280x720x15
 ```
 
 This repo wraps the same driver with:
@@ -391,8 +391,8 @@ ros2 launch hardware_bringup all_sensors.launch.py \
   arducam_fps:=15 \
   rplidar_model:=a2m8 \
   rplidar_serial_port:=/dev/ttyUSB1 \
-  realsense_color_profile:=1280,720,15 \
-  realsense_depth_profile:=1280,720,15 \
+  realsense_color_profile:=1280x720x15 \
+  realsense_depth_profile:=1280x720x15 \
   hesai_config_file:=$(pwd)/src/hardware_bringup/config/hesai.yaml
 ```
 
