@@ -20,8 +20,8 @@ def generate_launch_description():
             DeclareLaunchArgument("enable_sync", default_value="true"),
             DeclareLaunchArgument("enable_rgbd", default_value="false"),
             DeclareLaunchArgument("pointcloud.enable", default_value="false"),
-            DeclareLaunchArgument("color_profile", default_value="640,480,15"),
-            DeclareLaunchArgument("depth_profile", default_value="640,480,15"),
+            DeclareLaunchArgument("color_profile", default_value="1280x720x6"),
+            DeclareLaunchArgument("depth_profile", default_value="1280x720x6"),
             DeclareLaunchArgument("log_level", default_value="info"),
             Node(
                 package="realsense2_camera",

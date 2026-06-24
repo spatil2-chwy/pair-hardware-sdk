@@ -161,8 +161,8 @@ ros2 launch realsense2_camera rs_launch.py \
   enable_depth:=true \
   enable_color:=true \
   align_depth.enable:=true \
-  rgb_camera.color_profile:=640,480,15 \
-  depth_module.depth_profile:=640,480,15
+  rgb_camera.color_profile:=1280x720x6 \
+  depth_module.depth_profile:=1280x720x6
 ```
 
 This repo wraps the same driver with:
@@ -386,9 +386,13 @@ Override common device settings:
 ros2 launch hardware_bringup all_sensors.launch.py \
   arducam_video_device:=/dev/video2 \
   arducam_namespace:=arducam \
+  arducam_image_width:=1280 \
+  arducam_image_height:=720 \
+  arducam_fps:=15 \
   rplidar_model:=a2m8 \
   rplidar_serial_port:=/dev/ttyUSB1 \
-  realsense_color_profile:=640,480,15 \
+  realsense_color_profile:=1280x720x6 \
+  realsense_depth_profile:=1280x720x6 \
   hesai_config_file:=$(pwd)/src/hardware_bringup/config/hesai.yaml
 ```
 
