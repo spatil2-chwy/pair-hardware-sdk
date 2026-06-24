@@ -1,0 +1,24 @@
+robot_id: cody
+robot_type: go2
+provider_id: cody-go2
+provider_key_root: argos
+
+resources:
+  - resource_id: arducam_001
+    capabilities:
+      - camera.rgb
+      - camera.intrinsics
+    topics:
+      rgb: /arducam/image_raw
+      camera_info: /arducam/camera_info
+
+  - resource_id: realsense_001
+    capabilities:
+      - camera.rgb
+      - camera.rgbd
+      - camera.intrinsics
+    topics:
+      rgb: /camera/realsense_001/color/image_raw
+      depth: /camera/realsense_001/aligned_depth_to_color/image_raw
+      camera_info: /camera/realsense_001/color/camera_info
+    depth_scale: 0.001
