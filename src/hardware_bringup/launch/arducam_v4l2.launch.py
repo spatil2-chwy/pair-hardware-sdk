@@ -83,7 +83,7 @@ def generate_launch_description():
                 ],
             ),
             DeclareLaunchArgument("publish_rect", default_value="true"),
-            DeclareLaunchArgument("rect_balance", default_value="1.0"),
+            DeclareLaunchArgument("rect_balance", default_value="0.0"),
             DeclareLaunchArgument("rect_fov_scale", default_value="1.0"),
             DeclareLaunchArgument("rect_interpolation", default_value="linear"),
             OpaqueFunction(function=start_camera),

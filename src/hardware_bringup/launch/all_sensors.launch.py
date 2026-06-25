@@ -56,7 +56,7 @@ def generate_launch_description():
             ],
         ),
         DeclareLaunchArgument("arducam_publish_rect", default_value="true"),
-        DeclareLaunchArgument("arducam_rect_balance", default_value="1.0"),
+        DeclareLaunchArgument("arducam_rect_balance", default_value="0.0"),
         DeclareLaunchArgument("arducam_rect_fov_scale", default_value="1.0"),
         DeclareLaunchArgument("arducam_rect_interpolation", default_value="linear"),
         DeclareLaunchArgument(
