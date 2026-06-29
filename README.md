@@ -187,6 +187,22 @@ Then:
 ros2 launch hardware_bringup arducam_v4l2.launch.py video_device:=/dev/video0
 ```
 
+By default this uses the checked-in fisheye calibration at
+`src/hardware_bringup/config/arducam_b0202_1280x720.yaml` and also publishes a
+cropped rectilinear test image on `/arducam/image_rect`:
+
+```bash
+ros2 launch hardware_bringup arducam_v4l2.launch.py \
+  video_device:=/dev/video0 \
+  rect_balance:=0.0 \
+  rect_fov_scale:=1.0
+```
+
+Use `rect_balance:=1.0` to preserve as much of the fisheye field of view as
+OpenCV's rectilinear projection allows, which will show black borders and heavily
+stretched edges. Use `publish_rect:=false` to disable the extra rectification
+node.
+
 Check devices with:
 
 ```bash
@@ -389,6 +405,8 @@ ros2 launch hardware_bringup all_sensors.launch.py \
   arducam_image_width:=1280 \
   arducam_image_height:=720 \
   arducam_fps:=15 \
+  arducam_rect_balance:=0.0 \
+  arducam_rect_fov_scale:=1.0 \
   rplidar_model:=a2m8 \
   rplidar_serial_port:=/dev/ttyUSB1 \
   realsense_color_profile:=1280x720x6 \
@@ -409,6 +427,7 @@ ros2 topic hz /scan
 ros2 topic hz /lidar_points
 ros2 topic hz /camera/realsense_001/color/image_raw
 ros2 topic hz /arducam/image_raw
+ros2 topic hz /arducam/image_rect
 ```
 
 If you have GUI/X forwarding set up later, `rqt_image_view` and `rviz2` are useful optional tools, but they are not required for headless bringup.
@@ -423,7 +442,7 @@ Expected topic families:
 
 - RealSense 001: `/camera/realsense_001/color/image_raw`, `/camera/realsense_001/depth/image_rect_raw`, `/camera/realsense_001/aligned_depth_to_color/image_raw`
 - RealSense 002: `/camera/realsense_002/color/image_raw`, `/camera/realsense_002/depth/image_rect_raw`, `/camera/realsense_002/aligned_depth_to_color/image_raw`
-- Arducam V4L2: `/arducam/image_raw`, `/arducam/camera_info`
+- Arducam V4L2: `/arducam/image_raw`, `/arducam/image_rect`, `/arducam/camera_info`, `/arducam/camera_info_rect`
 - RPLIDAR: `/scan`
 - Hesai: `/lidar_points`, `/lidar_imu`, `/lidar_packets_loss`
 

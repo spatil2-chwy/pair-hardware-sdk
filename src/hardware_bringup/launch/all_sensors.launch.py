@@ -42,7 +42,23 @@ def generate_launch_description():
         DeclareLaunchArgument("arducam_image_width", default_value="1280"),
         DeclareLaunchArgument("arducam_image_height", default_value="720"),
         DeclareLaunchArgument("arducam_fps", default_value="15"),
-        DeclareLaunchArgument("arducam_camera_info_url", default_value=""),
+        DeclareLaunchArgument(
+            "arducam_camera_info_url",
+            default_value=[
+                "file://",
+                PathJoinSubstitution(
+                    [
+                        FindPackageShare("hardware_bringup"),
+                        "config",
+                        "arducam_b0202_1280x720.yaml",
+                    ]
+                ),
+            ],
+        ),
+        DeclareLaunchArgument("arducam_publish_rect", default_value="true"),
+        DeclareLaunchArgument("arducam_rect_balance", default_value="0.0"),
+        DeclareLaunchArgument("arducam_rect_fov_scale", default_value="1.0"),
+        DeclareLaunchArgument("arducam_rect_interpolation", default_value="linear"),
         DeclareLaunchArgument(
             "argos_manifest_path",
             default_value=PathJoinSubstitution(
@@ -121,6 +137,10 @@ def generate_launch_description():
             "image_height": LaunchConfiguration("arducam_image_height"),
             "fps": LaunchConfiguration("arducam_fps"),
             "camera_info_url": LaunchConfiguration("arducam_camera_info_url"),
+            "publish_rect": LaunchConfiguration("arducam_publish_rect"),
+            "rect_balance": LaunchConfiguration("arducam_rect_balance"),
+            "rect_fov_scale": LaunchConfiguration("arducam_rect_fov_scale"),
+            "rect_interpolation": LaunchConfiguration("arducam_rect_interpolation"),
         }.items(),
     )
 
